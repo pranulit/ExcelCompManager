@@ -50,7 +50,6 @@ function createUI() {
             alert("Error: " + error.toString());
         }
     };
-    
 
     dlg.layout.layout(true);
     dlg.center();
@@ -72,7 +71,6 @@ function getSelectedCompositions(listBox) {
     return selectedItems;
 }
 
-
 function populateListBox(listBox, searchTerm) {
     listBox.removeAll();
     var project = app.project;
@@ -87,6 +85,26 @@ function populateListBox(listBox, searchTerm) {
 }
 
 
+function searchPrecomps(comp, parentCompTextLayers) {
+    for (var k = 1; k <= comp.numLayers; k++) {
+        var layer = comp.layer(k);
+
+        // If the layer is a composition itself, recurse into it
+        if (layer.source instanceof CompItem) {
+            searchPrecomps(layer.source, parentCompTextLayers);
+        }
+
+        // Check if the layer is a text layer and has the "Source Text" property
+        if (layer instanceof TextLayer && layer.property("Source Text") != null) {
+            var textSource = layer.property("Source Text").value;
+            if (textSource) {
+                var textContent = textSource.text.replace(/[\r\n]+/g, " "); // Clean up new lines
+                var layerName = layer.name.split("^").slice(1).join("^"); // Assuming your layer names might contain special markers or prefixes
+                parentCompTextLayers[layerName] = textContent; // Store text content by layer name
+            }
+        }
+    }
+}
 
 
 function exportSelectedCompositions(compCheckboxes) {
@@ -98,32 +116,33 @@ function exportSelectedCompositions(compCheckboxes) {
         if (!compItem || !compItem.name || !compItem.numLayers || !compItem.layer) {
             continue; // Skip if compItem is invalid
         }
-        
+
+        // Reset text layer data storage for this composition
+        var parentCompTextLayers = {};
+
+        // Call searchPrecomps to extract text layers from parent comp, pass the parentCompTextLayers object to store results
+        searchPrecomps(compItem, parentCompTextLayers);
+
+        // Object to represent the composition with its text layers
         var compObj = {
             name: compItem.name,
-            textLayersContent: []
+            textLayersContent: parentCompTextLayers // Assign extracted text layers
         };
 
-        for (var j = 1; j <= compItem.numLayers; j++) {
-            var layer = compItem.layer(j);
-            if (layer instanceof TextLayer && layer.property("Source Text") != null) {
-                var textSource = layer.property("Source Text").value;
-                if (textSource) {
-                    var textContent = textSource.text.replace(/[\r\n]+/g, " ");
-                    compObj.textLayersContent.push({ text: textContent, name: layer.name });
-                    var layerName = layer.name.split("^").slice(1).join("^");
-                    uniqueTextLayerNames[layerName] = true;
-                }
-            }
-        }
-
         comps.push(compObj);
+        
+        // Update unique text layer names dictionary
+        for (var layerName in parentCompTextLayers) {
+            uniqueTextLayerNames[layerName] = true;
+        }
     }
+
     generateAndSaveCSV(comps, uniqueTextLayerNames);
 }
 
 function generateAndSaveCSV(comps, uniqueTextLayerNames) {
     var headers = ["Composition Name"];
+    // Manually iterate through the uniqueTextLayerNames to add them to headers
     for (var layerName in uniqueTextLayerNames) {
         if (uniqueTextLayerNames.hasOwnProperty(layerName)) {
             headers.push(layerName);
@@ -131,27 +150,29 @@ function generateAndSaveCSV(comps, uniqueTextLayerNames) {
     }
 
     var csvContent = headers.join(",") + "\n";
-    for (var k = 0; k < comps.length; k++) {
-        var compObj = comps[k];
-        var compRow = new Array(headers.length);
-        for (var m = 0; m < compRow.length; m++) { compRow[m] = '""'; } // Initialize array elements
-        compRow[0] = "\"" + compObj.name.replace(/"/g, '""') + "\"";
 
-        for (var j = 0; j < compObj.textLayersContent.length; j++) {
-            var textLayer = compObj.textLayersContent[j];
-            var textLayerName = textLayer.name.split("^").slice(1).join("^");
-            var headerIndex = indexOf(headers, textLayerName);
-            if (headerIndex !== -1) {
-                var textContent = textLayer.text.replace(/"/g, '""');
-                compRow[headerIndex] = "\"" + textContent + "\"";
-            }
+    // Iterate over comps with a traditional for loop
+    for (var i = 0; i < comps.length; i++) {
+        var compObj = comps[i];
+        var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"']; // Start row with composition name
+
+        // Iterate over headers to fill row with data for each text layer or empty if none
+        for (var j = 1; j < headers.length; j++) {
+            var layerName = headers[j];
+            var textContent = compObj.textLayersContent[layerName];
+            compRow.push(textContent ? '"' + textContent.replace(/"/g, '""') + '"' : '""');
         }
 
+        // Join row data and add to CSV content
         csvContent += compRow.join(",") + "\n";
     }
 
+    // Save CSV file with the generated content
     saveCSVFile(csvContent);
 }
+
+
+
 
 function saveCSVFile(csvContent) {
     var file = new File(File.saveDialog("Save your CSV file", "*.csv"));

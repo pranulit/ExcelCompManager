@@ -65,9 +65,6 @@
                 }
             }
 
-
-
-
             // New handling for layers starting with >
             if (layer.name.indexOf(">") !== -1) {
                 var filePathLayerName = layer.name; // Keep original naming
@@ -86,8 +83,6 @@
                     layers[cleanFilePathLayerName] = "File path not found";
                 }
             }
-
-
     
             // Recurse into nested precomps
             if (layer.source instanceof CompItem && /^!/.test(layer.name)) {
