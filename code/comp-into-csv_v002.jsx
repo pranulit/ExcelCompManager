@@ -1,41 +1,52 @@
 
 // Define a function to find the index of an element in an array
 function indexOf(array, element) {
-    // Loop through the array
+// Loop through the array
     for (var i = 0; i < array.length; i++) {
+        // If the current element matches the search element, return its index
         if (array[i] === element) {
             return i;
         }
     }
-    return -1; // Element not found
+    // Return -1 if the element is not found in the array
+    return -1;
 }
 
+// Define a function to create a user interface window in After Effects
 function createUI() {
+    // Create a new dialog window titled "Select Compositions"
     var dlg = new Window("dialog", "Select Compositions", undefined, {resizeable: false});
     dlg.size = [400, 400];
 
+    // Add a group for the search bar
     var searchGroup = dlg.add("group");
     searchGroup.orientation = "row";
+    // Add a text edit field and a search button to the group
     var searchEdit = searchGroup.add("edittext", undefined, "");
     searchEdit.characters = 20;
     var searchButton = searchGroup.add("button", undefined, "Search");
 
+    // Add a list box to display items with multi-selection enabled
     var listBox = dlg.add("listbox", [0, 0, 380, 300], [], {multiselect: true});
     listBox.alignment = "fill";
 
     // Populate the list box initially
     populateListBox(listBox, "");  // Assuming a function populateListBox is defined
 
+    // Define the search button click behavior
     searchButton.onClick = function() {
         populateListBox(listBox, searchEdit.text);
     };
 
+    // Add a group for buttons
     var buttons = dlg.add("group");
     buttons.alignment = "right";
     var cancelButton = buttons.add("button", undefined, "Cancel", { name: "cancel" });
     var saveButton = buttons.add("button", undefined, "Save", { name: "ok" });
 
+    // Define the cancel button behavior
     cancelButton.onClick = function() { dlg.close(); };
+    // Define the save button behavior
     saveButton.onClick = function() {
         try {
             var selectedCompositions = getSelectedCompositions(listBox);
@@ -51,16 +62,20 @@ function createUI() {
         }
     };
 
+    // Lay out the dialog elements, center it, and display it
     dlg.layout.layout(true);
     dlg.center();
     dlg.show();
 }
 
+// Define a function to get the compositions selected in the list box
 function getSelectedCompositions(listBox) {
     var selectedItems = [];
+    // Loop through the list box items
     for (var i = 0; i < listBox.items.length; i++) {
+        // Check if the item is selected
         if (listBox.items[i].selected) {
-            // Check if associatedComp exists to avoid TypeError
+            // Check if associated composition exists to avoid errors
             if (listBox.items[i].compItem) {
                 selectedItems.push(listBox.items[i].compItem);
             } else {
@@ -68,16 +83,19 @@ function getSelectedCompositions(listBox) {
             }
         }
     }
-    return selectedItems;
+    return selectedItems; // Return the array of selected compositions
 }
 
+// Define a function to populate the list box with compositions that match the search term
 function populateListBox(listBox, searchTerm) {
-    listBox.removeAll();
+    listBox.removeAll(); // Remove all current items from the list box
     var project = app.project;
     var compositions = project.items;
+    // Loop through the compositions in the project
     for (var i = 1; i <= compositions.length; i++) {
         var compItem = compositions[i];
-        if (compItem instanceof CompItem && compItem.name.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1) {
+        // Check if the item is a composition and matches the search term
+        if (compItem.name.toLowerCase().indexOf(searchTerm.toLowerCase()) !== -1) {
             var item = listBox.add("item", compItem.name);
             item.compItem = compItem;
         }
@@ -105,7 +123,6 @@ function searchPrecomps(comp, parentCompTextLayers) {
         }
     }
 }
-
 
 function exportSelectedCompositions(compCheckboxes) {
     var comps = [];
@@ -170,9 +187,6 @@ function generateAndSaveCSV(comps, uniqueTextLayerNames) {
     // Save CSV file with the generated content
     saveCSVFile(csvContent);
 }
-
-
-
 
 function saveCSVFile(csvContent) {
     var file = new File(File.saveDialog("Save your CSV file", "*.csv"));
