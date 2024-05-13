@@ -102,14 +102,37 @@ function populateListBox(listBox, searchTerm) {
     }
 }
 
+// Define a function to retrieve path data from a layer
+function getPathData(layer) {
+    if (layer.name.indexOf(">") === 0) {
+        try {
+            if (layer instanceof ShapeLayer && layer.property("ADBE Vector Shape - Group")) {
+                var shapeProperty = layer.property("ADBE Vector Shape - Group");
+                return shapeProperty.value.toString(); // Return the path data directly
+            } else {
+                // Return a default message when no path data is found
+                return "no file path found";
+            }
+        } catch (error) {
+            alert("Error in getPathData for " + layer.name + ": " + error.toString());
+            return "no file path found"; // Return default message on error
+        }
+    } else {
+        return "no file path found"; // Return default message if layer name does not start with '>'
+    }
+}
 
-function searchPrecomps(comp, parentCompTextLayers) {
+
+
+
+// Modify the searchPrecomps function to include alert statements for debugging
+function searchPrecomps(comp, parentCompTextLayers, parentCompPathLayers) {
     for (var k = 1; k <= comp.numLayers; k++) {
         var layer = comp.layer(k);
 
         // If the layer is a composition itself, recurse into it
         if (layer.source instanceof CompItem) {
-            searchPrecomps(layer.source, parentCompTextLayers);
+            searchPrecomps(layer.source, parentCompTextLayers, parentCompPathLayers);
         }
 
         // Check if the layer is a text layer and has the "Source Text" property
@@ -121,48 +144,32 @@ function searchPrecomps(comp, parentCompTextLayers) {
                 parentCompTextLayers[layerName] = textContent; // Store text content by layer name
             }
         }
+
+        if (layer.name.indexOf(">") === 0) {
+            var layerName = layer.name.substring(1); // Remove ">" symbol from the layer name
+            var pathData = getPathData(layer); // Retrieve path data from the layer
+            parentCompPathLayers[layerName] = pathData; // Store path data by layer name
+            alert("Path data for layer " + layerName + ": " + pathData); // Informative alert on what was stored
+        }
     }
 }
 
-function exportSelectedCompositions(compCheckboxes) {
-    var comps = [];
-    var uniqueTextLayerNames = {};
 
-    for (var i = 0; i < compCheckboxes.length; i++) {
-        var compItem = compCheckboxes[i];
-        if (!compItem || !compItem.name || !compItem.numLayers || !compItem.layer) {
-            continue; // Skip if compItem is invalid
-        }
-
-        // Reset text layer data storage for this composition
-        var parentCompTextLayers = {};
-
-        // Call searchPrecomps to extract text layers from parent comp, pass the parentCompTextLayers object to store results
-        searchPrecomps(compItem, parentCompTextLayers);
-
-        // Object to represent the composition with its text layers
-        var compObj = {
-            name: compItem.name,
-            textLayersContent: parentCompTextLayers // Assign extracted text layers
-        };
-
-        comps.push(compObj);
-        
-        // Update unique text layer names dictionary
-        for (var layerName in parentCompTextLayers) {
-            uniqueTextLayerNames[layerName] = true;
-        }
-    }
-
-    generateAndSaveCSV(comps, uniqueTextLayerNames);
-}
-
-function generateAndSaveCSV(comps, uniqueTextLayerNames) {
+function generateAndSaveCSV(comps, uniqueTextLayerNames, uniquePathLayerNames) {
     var headers = ["Composition Name"];
-    // Manually iterate through the uniqueTextLayerNames to add them to headers
-    for (var layerName in uniqueTextLayerNames) {
-        if (uniqueTextLayerNames.hasOwnProperty(layerName)) {
-            headers.push(layerName);
+    var textLayerName, pathLayerName, layerName, textContent, pathContent;
+    
+    // Add text layer names to headers
+    for (textLayerName in uniqueTextLayerNames) {
+        if (uniqueTextLayerNames.hasOwnProperty(textLayerName)) {
+            headers.push(textLayerName);
+        }
+    }
+
+    // Add path layer names to headers
+    for (pathLayerName in uniquePathLayerNames) {
+        if (uniquePathLayerNames.hasOwnProperty(pathLayerName)) {
+            headers.push(pathLayerName);
         }
     }
 
@@ -171,14 +178,42 @@ function generateAndSaveCSV(comps, uniqueTextLayerNames) {
     // Iterate over comps with a traditional for loop
     for (var i = 0; i < comps.length; i++) {
         var compObj = comps[i];
+        alert("Comp Object: " + JSON.stringify(compObj));
         var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"']; // Start row with composition name
 
-        // Iterate over headers to fill row with data for each text layer or empty if none
+        // Fill row with data for each text layer or empty if none
         for (var j = 1; j < headers.length; j++) {
-            var layerName = headers[j];
-            var textContent = compObj.textLayersContent[layerName];
-            compRow.push(textContent ? '"' + textContent.replace(/"/g, '""') + '"' : '""');
+            layerName = headers[j];
+            textContent = compObj.textLayersContent[layerName];
+            pathContent = compObj.pathLayersContent[layerName];
+
+            // Debugging alerts to check the values
+            alert("Layer Name: " + layerName);
+            alert("Text Content: " + textContent);
+            alert("Path Content: " + pathContent);
+
+            // Check if textContent is undefined or null
+            if (textContent == null) {
+                alert("Text Content is null or undefined");
+                textContent = '';
+            }
+
+            // Check if pathContent is undefined or null
+            if (pathContent == null) {
+                alert("Path Content is null or undefined");
+                pathContent = '';
+            }
+
+            // Debugging alert to check the final content being pushed to the row
+            alert("Final Content: " + (textContent || pathContent).replace(/"/g, '""'));
+
+            // Push the content to the row
+            compRow.push('"' + (textContent || pathContent).replace(/"/g, '""') + '"');
         }
+
+        // Debugging alerts to check compRow and headers length
+        alert("Comp Row: " + JSON.stringify(compRow));
+        alert("Headers Length: " + headers.length);
 
         // Join row data and add to CSV content
         csvContent += compRow.join(",") + "\n";
@@ -187,6 +222,7 @@ function generateAndSaveCSV(comps, uniqueTextLayerNames) {
     // Save CSV file with the generated content
     saveCSVFile(csvContent);
 }
+
 
 function saveCSVFile(csvContent) {
     var file = new File(File.saveDialog("Save your CSV file", "*.csv"));
