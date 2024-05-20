@@ -135,9 +135,10 @@ function searchPrecomps(comp, parentCompData, project) {
       }
     }
 
-    // Extract file paths from applicable layers
-    if (layer.source && layer.source.file) {
-      var filePath = layer.source.file.fsName;
+    // Capture all layers that start with ">", even if they don't have a file
+    if (layer.name.substring(0, 1) === ">") {
+      // If the layer has a source file, store the path; otherwise, note the absence of a path
+      var filePath = (layer.source && layer.source.file) ? layer.source.file.fsName : "no path retrieved";
       parentCompData.fileLayers[layer.name] = filePath;
     }
 
@@ -236,7 +237,7 @@ function generateAndSaveCSV(
   // Add headers for file layers
   for (layerName in uniqueFileLayerNames) {
     if (uniqueFileLayerNames.hasOwnProperty(layerName)) {
-      headers.push(layerName + " File Path");
+      headers.push(layerName);
     }
   }
 

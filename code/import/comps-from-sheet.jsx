@@ -1,6 +1,21 @@
 {
-    var filePath = "C:\\Users\\TAPE-B\\Desktop\\Code\\AE-content-extraction\\excel\\txt\\00_main.txt"; // Path to the TSV file
+    function chooseFilePath() {
+        var file = File.openDialog("Select a TSV file", "TSV files:*.tsv;*.txt", false);
+        if (file) {
+            return file.fsName; // Return the full path of the file
+        } else {
+            alert("No file was selected.");
+            return null; // Return null if no file is selected
+        }
+    }
+    
+    // Main function or appropriate place in the script to set the file path
+    var filePath = chooseFilePath(); // Get the file path using the dialog box
+    if (!filePath) {
+        throw new Error("Script terminated: No file selected.");
+    }
 
+    
     // Function to read and parse the TSV file
     function parseDocument(filePath) {
         var file = new File(filePath);
