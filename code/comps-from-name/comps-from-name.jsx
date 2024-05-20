@@ -2,27 +2,62 @@
     var myPanel = (this instanceof Panel) ? this : new Window("palette", "Create Compositions", undefined, {resizeable:true});
 
     if (myPanel != null) {
-        var textGroup = myPanel.add("group");
-        textGroup.orientation = "row";
-        textGroup.add("statictext", undefined, "Enter Composition Names:");
+        var mainGroup = myPanel.add("group");
+        mainGroup.orientation = "column";
+        mainGroup.alignChildren = "fill";
 
-        var inputGroup = myPanel.add("group");
+        // Group for checkbox
+        var checkboxGroup = mainGroup.add("group");
+        checkboxGroup.orientation = "row";
+        var addOfflineCheckbox = checkboxGroup.add("checkbox", undefined, "Add Offline File");
+
+        // Group for the labels and input boxes
+        var inputGroup = mainGroup.add("group");
         inputGroup.orientation = "row";
-        var compsInput = inputGroup.add("edittext", undefined, "", {multiline: true});
+        inputGroup.alignChildren = "top";
+        inputGroup.alignment = ["center", "top"];
+
+        // Subgroup for composition names
+        var compNameGroup = inputGroup.add("group");
+        compNameGroup.orientation = "column";
+        compNameGroup.alignChildren = "center";
+        compNameGroup.add("statictext", undefined, "Add Composition Names:");
+        var compsInput = compNameGroup.add("edittext", undefined, "", {multiline: true});
         compsInput.size = [300, 100];
 
-        var fpsGroup = myPanel.add("group");
+        // Subgroup for offline file input
+        var offlineFileGroup = inputGroup.add("group");
+        offlineFileGroup.orientation = "column";
+        offlineFileGroup.alignChildren = "center";
+        offlineFileGroup.add("statictext", undefined, "Add Offline File:");
+        var offlineFileInput = offlineFileGroup.add("edittext", undefined, "", {multiline: true});
+        offlineFileInput.size = [300, 100];
+        offlineFileGroup.visible = false;
+
+        addOfflineCheckbox.onClick = function() {
+            var visible = addOfflineCheckbox.value;
+            offlineFileGroup.visible = visible;
+            compNameGroup.alignment = visible ? ["left", "top"] : ["center", "top"];
+            inputGroup.layout.layout(true); // Adjust the layout when visibility changes
+        };
+
+        // Group for FPS selection and button
+        var bottomGroup = mainGroup.add("group");
+        bottomGroup.orientation = "column";
+        bottomGroup.alignChildren = "fill";
+
+        var fpsGroup = bottomGroup.add("group");
         fpsGroup.orientation = "row";
         fpsGroup.add("statictext", undefined, "Select FPS:");
         var fpsDropdown = fpsGroup.add("dropdownlist", undefined, ["24", "25", "30", "60"]);
         fpsDropdown.selection = 1;
 
-        var buttonGroup = myPanel.add("group");
+        var buttonGroup = bottomGroup.add("group");
         buttonGroup.orientation = "row";
         var createBtn = buttonGroup.add("button", undefined, "Create Compositions");
         createBtn.onClick = function() {
-            createCompositions(compsInput.text, parseFloat(fpsDropdown.selection.text));
-        }
+            createCompositions(compsInput.text, offlineFileInput.text, parseFloat(fpsDropdown.selection.text));
+        };
     }
 
     function createCompositions(compsInput, fps) {
