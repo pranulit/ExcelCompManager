@@ -1,195 +1,195 @@
 {
-  // Function to read TSV file
-  function readTSV(filePath) {
-    var file = new File(filePath);
-    if (!file.exists) {
-      $.writeln("TSV file not found: " + filePath);
-      throw new Error("TSV file not found: " + filePath);
-    }
+    var filePath = "C:\\Users\\TAPE-B\\Desktop\\Code\\AE-content-extraction\\excel\\txt\\00_main.txt"; // Path to the TSV file
 
-    file.open("r");
-    var data = [];
-    var headers;
-    while (!file.eof) {
-      var line = file.readln();
-      var values = line.split("\t");
-
-      if (!headers) {
-        headers = values; // first row as header
-        $.writeln("Headers: " + headers.join(", "));
-      } else {
-        var row = {};
-        for (var i = 0; i < headers.length; i++) {
-          row[headers[i]] = values[i];
+    // Function to read and parse the TSV file
+    function parseDocument(filePath) {
+        var file = new File(filePath);
+        var data = [];
+        if (file.open("r")) {
+            var headers = file.readln().split("\t"); // Read header line
+            alert("Headers: " + headers.join(", "));
+            while (!file.eof) {
+                var line = file.readln();
+                var columns = line.split("\t");
+                var row = {};
+                for (var i = 0; i < headers.length; i++) {
+                    row[headers[i]] = columns[i];
+                }
+                data.push(row);
+            }
+            file.close();
+        } else {
+            alert("Failed to open file: " + filePath);
         }
-        data.push(row);
-      }
+        return data;
     }
-    file.close();
-    $.writeln("TSV file read successfully: " + filePath);
-    return data;
-  }
 
-  // Function to import a file and place it in the specified folder
-  function importFile(filePath, importFolder) {
-    var file = new File(filePath);
-    $.writeln("Checking file: " + filePath);
-    if (file.exists) {
-      $.writeln("File exists: " + filePath);
-      var importOptions = new ImportOptions(file);
-      if (importOptions.canImportAs(ImportAsType.FOOTAGE)) {
-        importOptions.importAs = ImportAsType.FOOTAGE;
-      }
-      var importedFile = app.project.importFile(importOptions);
-      $.writeln("File imported: " + filePath);
-      importedFile.parentFolder = importFolder; // Move the imported file to the specified folder
-      $.writeln("File moved to folder: " + importFolder.name);
-      return importedFile;
-    } else {
-      $.writeln("File not found: " + filePath);
-      return null; // Handle file not found by returning null
-    }
-  }
-
-  // Function to update layers in a composition recursively
-  function updateLayers(comp, rowData, precompsFolder, importFolder) {
-    for (var i = 1; i <= comp.layers.length; i++) {
-      var layer = comp.layer(i);
-      var layerName = layer.name;
-      $.writeln("Processing layer: " + layerName);
-
-      // Update text layers if the layer name matches any of the headers
-      if (rowData[layerName]) {
-        var textValue = rowData[layerName];
-        if (textValue && layer.property("Source Text") != null) {
-          layer.property("Source Text").setValue(textValue);
-          $.writeln(
-            "Updated text for layer: " + layerName + " to: " + textValue
-          );
+    // Function to import a file and place it in the specified folder
+    function importFile(filePath, importFolder) {
+        var file = new File(filePath);
+        alert("Checking file: " + filePath);
+        if (file.exists) {
+            alert("File exists: " + filePath);
+            var importOptions = new ImportOptions(file);
+            if (importOptions.canImportAs(ImportAsType.FOOTAGE)) {
+                importOptions.importAs = ImportAsType.FOOTAGE;
+            }
+            var importedFile = app.project.importFile(importOptions);
+            importedFile.parentFolder = importFolder; // Move the imported file to the specified folder
+            alert("File imported and moved to folder: " + importFolder.name);
+            return importedFile;
+        } else {
+            alert("File not found: " + filePath);
+            return null;
         }
-      }
+    }
 
-      // Import and assign files to layers if the layer name starts with ">"
-      if (layerName.indexOf(">") === 0) {
-        var columnName = layerName.substring(1); // Remove the ">" symbol
-        var filePath = rowData[columnName];
-        if (filePath) {
-          $.writeln(
-            "Found file path for layer: " + layerName + " - " + filePath
-          );
-          var importedFile = importFile(filePath, importFolder);
-          if (importedFile) {
-            layer.replaceSource(importedFile, false);
-            layer.enabled = true; // Ensure the layer is visible
-            $.writeln(
-              "Replaced source for layer: " +
-                layer.name +
-                " with imported file: " +
-                filePath
-            );
-          } else {
-            $.writeln("Failed to import file for layer: " + layerName);
-          }
+    // Function to update layers in a composition recursively
+    function updateLayers(comp, rowData, precompsFolder, importFolder, importedFiles) {
+        if (!importedFiles) {
+            alert("importedFiles is undefined!");
+            return;
         }
-      }
 
-      // Recursively update text layers in precompositions
-      if (layer.source instanceof CompItem) {
-        $.writeln("Found precomposition layer: " + layerName);
-        updateLayers(layer.source, rowData, precompsFolder, importFolder);
-      }
-    }
-  }
+        for (var i = 1; i <= comp.layers.length; i++) {
+            var layer = comp.layer(i);
+            var layerName = layer.name;
+            alert("Processing layer: " + layerName);
 
-  // Function to create a comp from data
-  function createCompFromData(
-    rowData,
-    compIndex,
-    mainComp,
-    outputFolder,
-    precompsFolder,
-    importFolder
-  ) {
-    var newComp = mainComp.duplicate();
-    newComp.name = rowData["Composition Name"] || "Comp_" + compIndex;
-    $.writeln("Created new comp: " + newComp.name);
+            // Update text layers if the layer name matches any of the headers
+            if (rowData[layerName]) {
+                var textValue = rowData[layerName];
+                if (textValue && layer.property("Source Text") != null) {
+                    layer.property("Source Text").setValue(textValue);
+                    alert("Updated text for layer: " + layerName + " to: " + textValue);
+                }
+            }
 
-    // Update layers in the duplicated composition and its precompositions
-    updateLayers(newComp, rowData, precompsFolder, importFolder);
+            // Replace layers with corresponding imported files if the layer name starts with ">"
+            if (layerName.indexOf(">") === 0) {
+                var columnName = layerName.substring(1); // Remove the ">" symbol
+                var importedFile = importedFiles[columnName];
+                
+                // Debugging logs
+                $.writeln("Layer: " + layerName);
+                $.writeln("Column Name: " + columnName);
+                $.writeln("Imported File: " + (importedFile ? importedFile.name : "None"));
 
-    // Move the new composition to the specified folder
-    newComp.parentFolder = outputFolder;
-    $.writeln("Moved new comp to folder: " + outputFolder.name);
+                if (importedFile) {
+                    layer.replaceSource(importedFile, false);
+                    layer.enabled = true; // Ensure the layer is visible
+                } else {
+                    alert("No imported file found for column: " + columnName);
+                }
+            }
 
-    return newComp;
-  }
+            // Recursively update and duplicate text layers in precompositions
+            if (layer.source instanceof CompItem) {
+                alert("Found precomposition layer: " + layerName);
+                var preCompDuplicate = layer.source.duplicate();
+                preCompDuplicate.name = comp.name + " - " + layerName;
+                preCompDuplicate.parentFolder = precompsFolder;
 
-  // Main function
-  function main() {
-    var tsvPath =
-      "/Users/tadaspranulis/Desktop/Code/after-effects/AE-content-extractor/excel/02_txt/text-path-name_extract_v001.txt"; // Path to the TSV file
-    var outputFolderName = "Generated Comps"; // Name of the folder for new compositions
-    var precompsFolderName = "Precomps"; // Name of the folder for new precompositions
-    var importFolderName = "Imported Files"; // Name of the folder for imported files
+                // Update layers in the duplicated precomp
+                updateLayers(preCompDuplicate, rowData, precompsFolder, importFolder, importedFiles);
+                
 
-    var data = readTSV(tsvPath);
-
-    // Ensure the project has items
-    if (app.project.items.length === 0) {
-      $.writeln(
-        "No items in the project. Please ensure your project has at least one composition."
-      );
-      throw new Error(
-        "No items in the project. Please ensure your project has at least one composition."
-      );
-    }
-
-    // Find the main composition (assuming it is the first composition in the project)
-    var mainComp = null;
-    for (var i = 1; i <= app.project.items.length; i++) {
-      if (app.project.items[i] instanceof CompItem) {
-        mainComp = app.project.items[i];
-        break;
-      }
+                // Update the layer to use the new precomp
+                layer.replaceSource(preCompDuplicate, false);
+                layer.enabled = true; // Ensure the layer is visible
+                alert("Duplicated precomp: " + preCompDuplicate.name);
+            }
+        }
     }
 
-    if (!mainComp) {
-      $.writeln(
-        "No composition found in the project. Please ensure your project has at least one composition."
-      );
-      throw new Error(
-        "No composition found in the project. Please ensure your project has at least one composition."
-      );
+    // Function to create a comp from data
+    function createCompFromData(rowData, mainComp, outputFolder, precompsFolder, importFolder) {
+        var newComp = mainComp.duplicate();
+        newComp.name = rowData["Composition Name"];
+        alert("Created new comp: " + newComp.name);
+
+        var importedFiles = {};
+
+        // Import files and store them in the dictionary
+        for (var key in rowData) {
+            if (key.indexOf(">") === 0) {
+                var filePath = rowData[key];
+                if (filePath) {
+                    var importedFile = importFile(filePath, importFolder);
+                    if (importedFile) {
+                        importedFiles[key.substring(1)] = importedFile; // Store the imported file with the column name as key
+                    }
+                }
+            }
+        }
+
+        // Debugging log
+        $.writeln("Imported Files: " + JSON.stringify(importedFiles));
+
+        // Update layers in the duplicated composition and its precompositions
+        updateLayers(newComp, rowData, precompsFolder, importFolder, importedFiles);
+
+        // Move the new composition to the specified folder
+        newComp.parentFolder = outputFolder;
+        alert("Moved new comp to folder: " + outputFolder.name);
+
+        return newComp;
     }
 
-    $.writeln("Main composition found: " + mainComp.name);
+    // Main function
+    function main() {
+        var outputFolderName = "Generated Comps"; // Name of the folder for new compositions
+        var precompsFolderName = "Precomps"; // Name of the folder for new precompositions
+        var importFolderName = "Imported Files"; // Name of the folder for imported files
 
-    // Create a new folder for the generated compositions
-    var outputFolder = app.project.items.addFolder(outputFolderName);
-    $.writeln("Created folder: " + outputFolderName);
+        var data = parseDocument(filePath);
+        var messages = [];
 
-    // Create a nested folder for the precompositions within the output folder
-    var precompsFolder = outputFolder.items.addFolder(precompsFolderName);
-    $.writeln("Created folder: " + precompsFolderName);
+        // Ensure the project has items
+        if (app.project.items.length === 0) {
+            var message = "No items in the project. Please ensure your project has at least one composition.";
+            alert(message);
+            throw new Error(message);
+        }
 
-    // Create a folder for imported files within the output folder
-    var importFolder = outputFolder.items.addFolder(importFolderName);
-    $.writeln("Created folder: " + importFolderName);
+        // Create a new folder for the generated compositions
+        var outputFolder = app.project.items.addFolder(outputFolderName);
+        alert("Created folder: " + outputFolderName);
 
-    for (var i = 0; i < data.length; i++) {
-      $.writeln("Processing row " + (i + 1));
-      createCompFromData(
-        data[i],
-        i + 1,
-        mainComp,
-        outputFolder,
-        precompsFolder,
-        importFolder
-      );
+        // Create a nested folder for the precompositions within the output folder
+        var precompsFolder = outputFolder.items.addFolder(precompsFolderName);
+        alert("Created folder: " + precompsFolderName);
+
+        // Create a folder for imported files within the output folder
+        var importFolder = outputFolder.items.addFolder(importFolderName);
+        alert("Created folder: " + importFolderName);
+
+        for (var i = 0; i < data.length; i++) {
+            alert("Processing row " + (i + 1));
+            var compName = data[i]["Composition Name"];
+            if (compName) {
+                var mainComp = null;
+                for (var j = 1; j <= app.project.items.length; j++) {
+                    if (app.project.items[j] instanceof CompItem && app.project.items[j].name === compName) {
+                        mainComp = app.project.items[j];
+                        break;
+                    }
+                }
+
+                if (mainComp) {
+                    createCompFromData(data[i], mainComp, outputFolder, precompsFolder, importFolder);
+                } else {
+                    var message = "Composition not found: " + compName;
+                    alert(message);
+                    messages.push(message);
+                }
+            }
+        }
+
+        // Show all messages at the end
+        var successMessage = "Script completed successfully.\n\n" + messages.join("\n");
+        alert(successMessage);
     }
 
-    $.writeln("Script completed successfully.");
-  }
-
-  main();
+    main();
 }
