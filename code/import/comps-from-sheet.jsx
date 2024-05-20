@@ -44,6 +44,17 @@
         }
     }
 
+    // Function to find a project item by name
+    function findProjectItemByName(name) {
+        for (var i = 1; i <= app.project.numItems; i++) {
+            if (app.project.item(i).name === name) {
+                return app.project.item(i);
+            }
+        }
+        return null;
+    }
+
+
     // Function to update layers in a composition recursively
     function updateLayers(comp, rowData, precompsFolder, importFolder, importedFiles) {
         if (!importedFiles) {
@@ -69,17 +80,25 @@
             if (layerName.indexOf(">") === 0) {
                 var columnName = layerName.substring(1); // Remove the ">" symbol
                 var importedFile = importedFiles[columnName];
-                
-                // Debugging logs
-                $.writeln("Layer: " + layerName);
-                $.writeln("Column Name: " + columnName);
-                $.writeln("Imported File: " + (importedFile ? importedFile.name : "None"));
 
                 if (importedFile) {
                     layer.replaceSource(importedFile, false);
                     layer.enabled = true; // Ensure the layer is visible
                 } else {
                     alert("No imported file found for column: " + columnName);
+                }
+            }
+
+            // Replace layers with corresponding project items if the layer name starts with "#"
+            if (layerName.indexOf("#") === 0) {
+                var columnName = layerName.substring(1); // Remove the "#" symbol
+                var projectItemName = rowData["#" + columnName]; // Get project item name from the TSV column
+                var projectItem = findProjectItemByName(projectItemName);
+                if (projectItem) {
+                    layer.replaceSource(projectItem, false);
+                    layer.enabled = true; // Ensure the layer is visible
+                } else {
+                    alert("No project item found for name: " + projectItemName);
                 }
             }
 
