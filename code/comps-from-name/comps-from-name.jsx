@@ -1,5 +1,5 @@
 (function() {
-    var myPanel = (this instanceof Panel) ? this : new Window("palette", "Create Compositions", undefined, {resizeable:true});
+    var myPanel = (this instanceof Panel) ? this : new Window("palette", "Create Compositions", undefined, {resizeable: true});
 
     if (myPanel != null) {
         var mainGroup = myPanel.add("group");
@@ -56,12 +56,22 @@
         buttonGroup.orientation = "row";
         var createBtn = buttonGroup.add("button", undefined, "Create Compositions");
         createBtn.onClick = function() {
-            createCompositions(compsInput.text, offlineFileInput.text, parseFloat(fpsDropdown.selection.text));
+            var offlineText = offlineFileInput.visible ? offlineFileInput.text : "";
+            alert("compsInput.text: " + compsInput.text);
+            alert("offlineFileInput.text: " + offlineText);
+            createCompositions(compsInput.text, offlineText, parseFloat(fpsDropdown.selection.text));
         };
     }
 
-    function createCompositions(compsInput, fps) {
+    function createCompositions(compsInput, offlineInputText, fps) {
+        alert("createCompositions called");
+        alert("compsInput: " + compsInput);
+        alert("offlineInputText: " + offlineInputText);
+        alert("fps: " + fps);
+
         var lines = compsInput.split("\n");
+        alert("lines: " + lines);
+
         var mainFolder = app.project.items.addFolder("main"); // Create the main folder
 
         var compSettings = {
@@ -77,19 +87,29 @@
         try {
             for (var i = 0; i < lines.length; i++) {
                 var line = lines[i].replace(/^\s+|\s+$/g, ''); // Trim whitespace using regex
+                alert("Processing line: " + line);
                 if (line !== "") {
                     var parts = line.split("_");
+                    alert("parts: " + parts);
+                    if (parts.length < 3) {
+                        alert("Invalid format for line: " + line);
+                        continue;
+                    }
                     var duration = parts[2].match(/(\d+)s/);
                     var formatMatch = parts[2].match(/(\d+x\d+)/);
                     var format = formatMatch ? formatMatch[1] : defaultFormat;
+                    alert("duration: " + duration);
+                    alert("format: " + format);
 
                     if (duration && compSettings[format]) {
                         var comp = app.project.items.addComp(parts[0], compSettings[format].width, compSettings[format].height, 1, parseFloat(duration[1]), fps);
                         comp.parentFolder = mainFolder; // Assign composition to the main folder
                         comp.name = line;
 
-                        var solid = comp.layers.addSolid([1, 1, 1], ">offline", comp.width, comp.height, 1);
-                        solid.name = ">offline";
+                        var solidName = offlineInputText.trim() !== "" ? offlineInputText : ">offline";
+                        alert("solidName: " + solidName);
+                        var solid = comp.layers.addSolid([1, 1, 1], solidName, comp.width, comp.height, 1);
+                        solid.name = solidName;
                     } else {
                         alert("Could not determine valid duration/format for: " + line);
                     }
