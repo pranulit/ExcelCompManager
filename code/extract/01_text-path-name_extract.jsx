@@ -12,6 +12,7 @@ function indexOf(array, element) {
 }
 
 // Define a function to create a user interface window in After Effects
+// Define a function to create a user interface window in After Effects
 function createUI() {
   // Create a new dialog window titled "Select Compositions"
   var dlg = new Window("dialog", "Select Compositions", undefined, {
@@ -41,36 +42,54 @@ function createUI() {
 
   // Add a group for buttons
   var buttons = dlg.add("group");
+  buttons.orientation = "row";
   buttons.alignment = "right";
   var cancelButton = buttons.add("button", undefined, "Cancel", {
     name: "cancel",
   });
-  var saveButton = buttons.add("button", undefined, "Save", { name: "ok" });
+  var saveCSVButton = buttons.add("button", undefined, "Save as CSV", {
+    name: "csv",
+  });
+  var saveTXTButton = buttons.add("button", undefined, "Save as TXT", {
+    name: "txt",
+  });
 
   // Define the cancel button behavior
   cancelButton.onClick = function () {
     dlg.close();
   };
-  // Define the save button behavior
-  saveButton.onClick = function () {
-    try {
-      var selectedCompositions = getSelectedCompositions(listBox);
-      alert("Selected " + selectedCompositions.length + " compositions.");
-      if (selectedCompositions.length === 0) {
-        alert("No compositions are selected or associated properly.");
-        return; // Exit if no compositions to process
-      }
-      exportSelectedCompositions(selectedCompositions);
-      dlg.close();
-    } catch (error) {
-      alert("Error: " + error.toString());
-    }
+
+  // Define the save button behavior for CSV
+  saveCSVButton.onClick = function () {
+    saveCompositions(listBox, "CSV");
+    dlg.close();
+  };
+
+  // Define the save button behavior for TXT
+  saveTXTButton.onClick = function () {
+    saveCompositions(listBox, "TXT");
+    dlg.close();
   };
 
   // Lay out the dialog elements, center it, and display it
   dlg.layout.layout(true);
   dlg.center();
   dlg.show();
+}
+
+// Define a function to save the selected compositions
+function saveCompositions(listBox, format) {
+  try {
+    var selectedCompositions = getSelectedCompositions(listBox);
+    alert("Selected " + selectedCompositions.length + " compositions.");
+    if (selectedCompositions.length === 0) {
+      alert("No compositions are selected or associated properly.");
+      return;
+    }
+    exportSelectedCompositions(selectedCompositions, format);
+  } catch (error) {
+    alert("Error: " + error.toString());
+  }
 }
 
 // Define a function to get the compositions selected in the list box
@@ -138,7 +157,10 @@ function searchPrecomps(comp, parentCompData, project) {
     // Capture all layers that start with ">", even if they don't have a file
     if (layer.name.substring(0, 1) === ">") {
       // If the layer has a source file, store the path; otherwise, note the absence of a path
-      var filePath = (layer.source && layer.source.file) ? layer.source.file.fsName : "no path retrieved";
+      var filePath =
+        layer.source && layer.source.file
+          ? layer.source.file.fsName
+          : "no path retrieved";
       parentCompData.fileLayers[layer.name] = filePath;
     }
 
@@ -172,34 +194,32 @@ function getSourceName(layerName, project) {
   return null; // Return null if source name is not found
 }
 
-function exportSelectedCompositions(compCheckboxes) {
+function exportSelectedCompositions(compCheckboxes, format) {
   var comps = [];
   var uniqueTextLayerNames = {};
   var uniqueFileLayerNames = {};
-  var uniqueSpecialLayerNames = {}; // Initialize for special layers
+  var uniqueSpecialLayerNames = {};
 
-  // Get the After Effects project object
   var project = app.project;
 
   for (var i = 0; i < compCheckboxes.length; i++) {
     var compItem = compCheckboxes[i];
     if (!compItem || !compItem.name || !compItem.numLayers) {
-      continue; // Skip if compItem is invalid
+      continue;
     }
 
     var parentCompData = { textLayers: {}, fileLayers: {}, specialLayers: {} };
-    searchPrecomps(compItem, parentCompData, project); // Pass the project object
+    searchPrecomps(compItem, parentCompData, project);
 
     var compObj = {
       name: compItem.name,
       textLayersContent: parentCompData.textLayers,
       fileLayersContent: parentCompData.fileLayers,
-      specialLayersContent: parentCompData.specialLayers, // Add special layers content
+      specialLayersContent: parentCompData.specialLayers,
     };
 
     comps.push(compObj);
 
-    // Update unique layer names
     for (var layerName in parentCompData.textLayers) {
       uniqueTextLayerNames[layerName] = true;
     }
@@ -207,15 +227,17 @@ function exportSelectedCompositions(compCheckboxes) {
       uniqueFileLayerNames[layerName] = true;
     }
     for (var layerName in parentCompData.specialLayers) {
-      uniqueSpecialLayerNames[layerName] = true; // Collect unique special layer names
+      uniqueSpecialLayerNames[layerName] = true;
     }
   }
 
+  var delimiter = format === "CSV" ? "," : "\t";
   generateAndSaveCSV(
     comps,
     uniqueTextLayerNames,
     uniqueFileLayerNames,
-    uniqueSpecialLayerNames
+    uniqueSpecialLayerNames,
+    delimiter
   );
 }
 
@@ -223,38 +245,35 @@ function generateAndSaveCSV(
   comps,
   uniqueTextLayerNames,
   uniqueFileLayerNames,
-  uniqueSpecialLayerNames
+  uniqueSpecialLayerNames,
+  delimiter
 ) {
   var headers = ["Composition Name"];
 
-  // Add headers for text layers
   for (var layerName in uniqueTextLayerNames) {
     if (uniqueTextLayerNames.hasOwnProperty(layerName)) {
       headers.push(layerName);
     }
   }
 
-  // Add headers for file layers
   for (layerName in uniqueFileLayerNames) {
     if (uniqueFileLayerNames.hasOwnProperty(layerName)) {
       headers.push(layerName);
     }
   }
 
-  // Now include headers for special layers starting with #
   for (layerName in uniqueSpecialLayerNames) {
     if (uniqueSpecialLayerNames.hasOwnProperty(layerName)) {
-      headers.push(layerName); // Include headers for special layers
+      headers.push(layerName);
     }
   }
 
-  var csvContent = headers.join(",") + "\n";
+  var csvContent = headers.join(delimiter) + "\n";
 
   for (var i = 0; i < comps.length; i++) {
     var compObj = comps[i];
     var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"'];
 
-    // Process each header to find corresponding content in the composition object
     for (var j = 1; j < headers.length; j++) {
       var header = headers[j];
       var isFilePath = header.indexOf(" File Path") > -1;
@@ -271,23 +290,23 @@ function generateAndSaveCSV(
         content = compObj.specialLayersContent[actualLayerName];
       }
 
-      // Ensure content is handled correctly for CSV
       compRow.push('"' + (content ? content.replace(/"/g, '""') : "") + '"');
     }
 
-    csvContent += compRow.join(",") + "\n";
+    csvContent += compRow.join(delimiter) + "\n";
   }
 
-  saveCSVFile(csvContent);
+  saveDelimitedFile(csvContent, delimiter);
 }
 
-function saveCSVFile(csvContent) {
-  var file = new File(File.saveDialog("Save your CSV file", "*.csv"));
+function saveDelimitedFile(content, delimiter) {
+  var fileExtension = delimiter === "," ? "*.csv" : "*.txt";
+  var file = new File(File.saveDialog("Save your file", fileExtension));
   if (file) {
     file.encoding = "UTF-8";
     file.open("w");
-    if (file.write(csvContent)) {
-      alert("CSV file saved successfully!");
+    if (file.write(content)) {
+      alert("File saved successfully!");
     } else {
       alert("Failed to write to file.");
     }

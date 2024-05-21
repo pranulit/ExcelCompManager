@@ -120,12 +120,15 @@ function searchPrecomps(comp, parentCompData, project) {
       searchPrecomps(layer.source, parentCompData, project);
     }
 
-  // Capture all layers that start with ">", even if they don't have a file
-  if (layer.name.substring(0, 1) === ">") {
-    // If the layer has a source file, store the path; otherwise, note the absence of a path
-    var filePath = (layer.source && layer.source.file) ? layer.source.file.fsName : "no path retrieved";
-    parentCompData.fileLayers[layer.name] = filePath;
-  }
+    // Capture all layers that start with ">", even if they don't have a file
+    if (layer.name.substring(0, 1) === ">") {
+      // If the layer has a source file, store the path; otherwise, note the absence of a path
+      var filePath =
+        layer.source && layer.source.file
+          ? layer.source.file.fsName
+          : "no path retrieved";
+      parentCompData.fileLayers[layer.name] = filePath;
+    }
   }
 }
 
@@ -161,13 +164,12 @@ function exportSelectedCompositions(compCheckboxes) {
 }
 
 function generateAndSaveCSV(comps, uniqueFileLayerNames) {
-  var headers = ["COMP"];  // Renamed for clarity and simplicity
+  var headers = ["Composition Name"];
 
   // Add headers for file layers without the first symbol ">"
   for (var layerName in uniqueFileLayerNames) {
     if (uniqueFileLayerNames.hasOwnProperty(layerName)) {
-      var cleanLayerName = layerName.substring(1);  // Remove the first character
-      headers.push(cleanLayerName);  // Just use the clean layer name
+      headers.push(layerName); // Use the original layer name as header
     }
   }
 
@@ -180,18 +182,17 @@ function generateAndSaveCSV(comps, uniqueFileLayerNames) {
     // Check each header to find corresponding content in the composition object
     for (var j = 1; j < headers.length; j++) {
       var header = headers[j];
-      var actualLayerName = ">" + header;  // Prepend ">" to match the original layer name stored in the object
       var content = "";
 
-      // Check if the actual layer name exists in the composition object
-      if (compObj.fileLayersContent.hasOwnProperty(actualLayerName)) {
-        if (compObj.fileLayersContent[actualLayerName]) {
-          content = compObj.fileLayersContent[actualLayerName]; // Use the retrieved path if available
+      // Check if the header exists in the composition object
+      if (compObj.fileLayersContent.hasOwnProperty(header)) {
+        if (compObj.fileLayersContent[header]) {
+          content = compObj.fileLayersContent[header]; // Use the retrieved path if available
         } else {
-          content = "no path retrieved";  // Indicate that no path was retrieved for this layer
+          content = "no path retrieved"; // Indicate that no path was retrieved for this layer
         }
       } else {
-        content = "";  // Leave the cell empty if the layer does not exist in the composition
+        content = ""; // Leave the cell empty if the layer does not exist in the composition
       }
 
       // Ensure content is handled correctly for CSV
