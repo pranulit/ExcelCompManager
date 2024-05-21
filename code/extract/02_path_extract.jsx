@@ -45,26 +45,28 @@ function createUI() {
   var cancelButton = buttons.add("button", undefined, "Cancel", {
     name: "cancel",
   });
-  var saveButton = buttons.add("button", undefined, "Save", { name: "ok" });
+  var saveCSVButton = buttons.add("button", undefined, "Save as CSV", {
+    name: "csv",
+  });
+  var saveTXTButton = buttons.add("button", undefined, "Save as TXT", {
+    name: "txt",
+  });
 
   // Define the cancel button behavior
   cancelButton.onClick = function () {
     dlg.close();
   };
-  // Define the save button behavior
-  saveButton.onClick = function () {
-    try {
-      var selectedCompositions = getSelectedCompositions(listBox);
-      alert("Selected " + selectedCompositions.length + " compositions.");
-      if (selectedCompositions.length === 0) {
-        alert("No compositions are selected or associated properly.");
-        return; // Exit if no compositions to process
-      }
-      exportSelectedCompositions(selectedCompositions);
-      dlg.close();
-    } catch (error) {
-      alert("Error: " + error.toString());
-    }
+
+  // Define the save button behavior for CSV
+  saveCSVButton.onClick = function () {
+    saveCompositions(listBox, "CSV");
+    dlg.close();
+  };
+
+  // Define the save button behavior for TXT
+  saveTXTButton.onClick = function () {
+    saveCompositions(listBox, "TXT");
+    dlg.close();
   };
 
   // Lay out the dialog elements, center it, and display it
@@ -112,45 +114,66 @@ function searchPrecomps(comp, parentCompData, project) {
     parentCompData.fileLayers = {};
   }
 
+  var hasGreaterThanLayer = false;
+
   for (var k = 1; k <= comp.numLayers; k++) {
     var layer = comp.layer(k);
 
-    // Recursively handle precompositions
-    if (layer.source instanceof CompItem) {
-      searchPrecomps(layer.source, parentCompData, project);
-    }
-
-    // Capture all layers that start with ">", even if they don't have a file
+    // Capture all layers that start with ">"
     if (layer.name.substring(0, 1) === ">") {
-      // If the layer has a source file, store the path; otherwise, note the absence of a path
+      hasGreaterThanLayer = true;
       var filePath =
         layer.source && layer.source.file
           ? layer.source.file.fsName
           : "no path retrieved";
       parentCompData.fileLayers[layer.name] = filePath;
     }
+
+    // Recursively handle precompositions
+    if (layer.source instanceof CompItem) {
+      searchPrecomps(layer.source, parentCompData, project);
+    }
+  }
+
+  // Mark the composition with hasGreaterThanLayer flag
+  parentCompData.hasGreaterThanLayer = hasGreaterThanLayer;
+}
+
+// Define a function to save the selected compositions
+function saveCompositions(listBox, format) {
+  try {
+    var selectedCompositions = getSelectedCompositions(listBox);
+    alert("Selected " + selectedCompositions.length + " compositions.");
+    if (selectedCompositions.length === 0) {
+      alert("No compositions are selected or associated properly.");
+      return;
+    }
+    exportSelectedCompositions(selectedCompositions, format);
+  } catch (error) {
+    alert("Error: " + error.toString());
   }
 }
 
-function exportSelectedCompositions(compCheckboxes) {
+// Updated exportSelectedCompositions function to handle CSV and TXT formats
+function exportSelectedCompositions(compCheckboxes, format) {
   var comps = [];
   var uniqueFileLayerNames = {};
 
-  // Get the After Effects project object
   var project = app.project;
 
   for (var i = 0; i < compCheckboxes.length; i++) {
     var compItem = compCheckboxes[i];
     if (!compItem || !compItem.name || !compItem.numLayers) {
-      continue; // Skip if compItem is invalid
+      continue;
     }
 
-    var parentCompData = { textLayers: {}, fileLayers: {}, specialLayers: {} };
-    searchPrecomps(compItem, parentCompData, project); // Pass the project object
+    var parentCompData = { fileLayers: {}, hasGreaterThanLayer: false };
+    searchPrecomps(compItem, parentCompData, project);
 
     var compObj = {
       name: compItem.name,
       fileLayersContent: parentCompData.fileLayers,
+      hasGreaterThanLayer: parentCompData.hasGreaterThanLayer,
     };
 
     comps.push(compObj);
@@ -160,58 +183,55 @@ function exportSelectedCompositions(compCheckboxes) {
     }
   }
 
-  generateAndSaveCSV(comps, uniqueFileLayerNames);
+  var delimiter = format === "CSV" ? "," : "\t";
+  generateAndSaveCSV(comps, uniqueFileLayerNames, delimiter);
 }
 
-function generateAndSaveCSV(comps, uniqueFileLayerNames) {
+function generateAndSaveCSV(comps, uniqueFileLayerNames, delimiter) {
   var headers = ["Composition Name"];
 
   // Add headers for file layers without the first symbol ">"
   for (var layerName in uniqueFileLayerNames) {
     if (uniqueFileLayerNames.hasOwnProperty(layerName)) {
-      headers.push(layerName); // Use the original layer name as header
+      headers.push(layerName);
     }
   }
 
-  var csvContent = headers.join(",") + "\n";
+  var csvContent = headers.join(delimiter) + "\n";
 
   for (var i = 0; i < comps.length; i++) {
     var compObj = comps[i];
     var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"'];
 
-    // Check each header to find corresponding content in the composition object
     for (var j = 1; j < headers.length; j++) {
       var header = headers[j];
       var content = "";
 
-      // Check if the header exists in the composition object
       if (compObj.fileLayersContent.hasOwnProperty(header)) {
-        if (compObj.fileLayersContent[header]) {
-          content = compObj.fileLayersContent[header]; // Use the retrieved path if available
+        if (compObj.hasGreaterThanLayer) {
+          content = compObj.fileLayersContent[header];
         } else {
-          content = "no path retrieved"; // Indicate that no path was retrieved for this layer
+          content = "";
         }
-      } else {
-        content = ""; // Leave the cell empty if the layer does not exist in the composition
       }
 
-      // Ensure content is handled correctly for CSV
-      compRow.push('"' + content.replace(/"/g, '""') + '"'); // Handle potential double quotes in content
+      compRow.push('"' + (content ? content.replace(/"/g, '""') : "") + '"');
     }
 
-    csvContent += compRow.join(",") + "\n";
+    csvContent += compRow.join(delimiter) + "\n";
   }
 
-  saveCSVFile(csvContent);
+  saveDelimitedFile(csvContent, delimiter);
 }
 
-function saveCSVFile(csvContent) {
-  var file = new File(File.saveDialog("Save your CSV file", "*.csv"));
+function saveDelimitedFile(content, delimiter) {
+  var fileExtension = delimiter === "," ? "*.csv" : "*.txt";
+  var file = new File(File.saveDialog("Save your file", fileExtension));
   if (file) {
     file.encoding = "UTF-8";
     file.open("w");
-    if (file.write(csvContent)) {
-      alert("CSV file saved successfully!");
+    if (file.write(content)) {
+      alert("File saved successfully!");
     } else {
       alert("Failed to write to file.");
     }

@@ -137,13 +137,10 @@ function searchPrecomps(comp, parentCompData, project) {
     parentCompData.specialLayers = {};
   }
 
+  var hasGreaterThanLayer = false;
+
   for (var k = 1; k <= comp.numLayers; k++) {
     var layer = comp.layer(k);
-
-    // Recursively handle precompositions
-    if (layer.source instanceof CompItem) {
-      searchPrecomps(layer.source, parentCompData, project);
-    }
 
     // Extract text from text layers
     if (layer instanceof TextLayer && layer.property("Source Text") != null) {
@@ -154,9 +151,9 @@ function searchPrecomps(comp, parentCompData, project) {
       }
     }
 
-    // Capture all layers that start with ">", even if they don't have a file
+    // Capture all layers that start with ">"
     if (layer.name.substring(0, 1) === ">") {
-      // If the layer has a source file, store the path; otherwise, note the absence of a path
+      hasGreaterThanLayer = true;
       var filePath =
         layer.source && layer.source.file
           ? layer.source.file.fsName
@@ -166,21 +163,21 @@ function searchPrecomps(comp, parentCompData, project) {
 
     // Check if layer name starts with "#"
     if (layer.name.charAt(0) === "#") {
-      // Extract and store the source name if the layer has a source
       if (layer.source) {
         var sourceName = getSourceName(layer.source.name, project);
         if (sourceName) {
           parentCompData.specialLayers[layer.name] = sourceName;
         } else {
-          // Handle cases where source name is not found
           parentCompData.specialLayers[layer.name] = "Source not found";
         }
       } else {
-        // Handle cases where there is no source
         parentCompData.specialLayers[layer.name] = "No source associated";
       }
     }
   }
+
+  // Mark the composition with hasGreaterThanLayer flag
+  parentCompData.hasGreaterThanLayer = hasGreaterThanLayer;
 }
 
 // Helper function to get source name from project
@@ -208,7 +205,12 @@ function exportSelectedCompositions(compCheckboxes, format) {
       continue;
     }
 
-    var parentCompData = { textLayers: {}, fileLayers: {}, specialLayers: {} };
+    var parentCompData = {
+      textLayers: {},
+      fileLayers: {},
+      specialLayers: {},
+      hasGreaterThanLayer: false,
+    };
     searchPrecomps(compItem, parentCompData, project);
 
     var compObj = {
@@ -216,6 +218,7 @@ function exportSelectedCompositions(compCheckboxes, format) {
       textLayersContent: parentCompData.textLayers,
       fileLayersContent: parentCompData.fileLayers,
       specialLayersContent: parentCompData.specialLayers,
+      hasGreaterThanLayer: parentCompData.hasGreaterThanLayer,
     };
 
     comps.push(compObj);
@@ -276,16 +279,17 @@ function generateAndSaveCSV(
 
     for (var j = 1; j < headers.length; j++) {
       var header = headers[j];
-      var isFilePath = header.indexOf(" File Path") > -1;
-      var actualLayerName = isFilePath
-        ? header.replace(" File Path", "")
-        : header;
+      var actualLayerName = header;
       var content = "";
 
       if (compObj.textLayersContent.hasOwnProperty(actualLayerName)) {
         content = compObj.textLayersContent[actualLayerName];
       } else if (compObj.fileLayersContent.hasOwnProperty(actualLayerName)) {
-        content = compObj.fileLayersContent[actualLayerName];
+        if (compObj.hasGreaterThanLayer) {
+          content = compObj.fileLayersContent[actualLayerName];
+        } else {
+          content = "";
+        }
       } else if (compObj.specialLayersContent.hasOwnProperty(actualLayerName)) {
         content = compObj.specialLayersContent[actualLayerName];
       }
@@ -317,3 +321,4 @@ function saveDelimitedFile(content, delimiter) {
 }
 
 createUI();
+//works

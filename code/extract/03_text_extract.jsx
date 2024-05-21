@@ -45,26 +45,28 @@ function createUI() {
   var cancelButton = buttons.add("button", undefined, "Cancel", {
     name: "cancel",
   });
-  var saveButton = buttons.add("button", undefined, "Save", { name: "ok" });
+  var saveCSVButton = buttons.add("button", undefined, "Save as CSV", {
+    name: "csv",
+  });
+  var saveTXTButton = buttons.add("button", undefined, "Save as TXT", {
+    name: "txt",
+  });
 
   // Define the cancel button behavior
   cancelButton.onClick = function () {
     dlg.close();
   };
-  // Define the save button behavior
-  saveButton.onClick = function () {
-    try {
-      var selectedCompositions = getSelectedCompositions(listBox);
-      alert("Selected " + selectedCompositions.length + " compositions.");
-      if (selectedCompositions.length === 0) {
-        alert("No compositions are selected or associated properly.");
-        return; // Exit if no compositions to process
-      }
-      exportSelectedCompositions(selectedCompositions);
-      dlg.close();
-    } catch (error) {
-      alert("Error: " + error.toString());
-    }
+
+  // Define the save button behavior for CSV
+  saveCSVButton.onClick = function () {
+    saveCompositions(listBox, "CSV");
+    dlg.close();
+  };
+
+  // Define the save button behavior for TXT
+  saveTXTButton.onClick = function () {
+    saveCompositions(listBox, "TXT");
+    dlg.close();
   };
 
   // Lay out the dialog elements, center it, and display it
@@ -127,84 +129,91 @@ function searchPrecomps(comp, parentCompTextLayers) {
   }
 }
 
-function exportSelectedCompositions(compCheckboxes) {
+// Define a function to save the selected compositions
+function saveCompositions(listBox, format) {
+  try {
+    var selectedCompositions = getSelectedCompositions(listBox);
+    alert("Selected " + selectedCompositions.length + " compositions.");
+    if (selectedCompositions.length === 0) {
+      alert("No compositions are selected or associated properly.");
+      return;
+    }
+    exportSelectedCompositions(selectedCompositions, format);
+  } catch (error) {
+    alert("Error: " + error.toString());
+  }
+}
+
+// Updated exportSelectedCompositions function to handle CSV and TXT formats
+function exportSelectedCompositions(compCheckboxes, format) {
   var comps = [];
   var uniqueTextLayerNames = {};
 
   for (var i = 0; i < compCheckboxes.length; i++) {
     var compItem = compCheckboxes[i];
     if (!compItem || !compItem.name || !compItem.numLayers || !compItem.layer) {
-      continue; // Skip if compItem is invalid
+      continue;
     }
 
-    // Reset text layer data storage for this composition
     var parentCompTextLayers = {};
-
-    // Call searchPrecomps to extract text layers from parent comp, pass the parentCompTextLayers object to store results
     searchPrecomps(compItem, parentCompTextLayers);
 
-    // Object to represent the composition with its text layers
     var compObj = {
       name: compItem.name,
-      textLayersContent: parentCompTextLayers, // Assign extracted text layers
+      textLayersContent: parentCompTextLayers,
     };
 
     comps.push(compObj);
 
-    // Update unique text layer names dictionary
     for (var layerName in parentCompTextLayers) {
       uniqueTextLayerNames[layerName] = true;
     }
   }
 
-  generateAndSaveCSV(comps, uniqueTextLayerNames);
+  var delimiter = format === "CSV" ? "," : "\t";
+  generateAndSaveCSV(comps, uniqueTextLayerNames, delimiter);
 }
 
-function generateAndSaveCSV(comps, uniqueTextLayerNames) {
+function generateAndSaveCSV(comps, uniqueTextLayerNames, delimiter) {
   var headers = ["Composition Name"];
-  // Manually iterate through the uniqueTextLayerNames to add them to headers
   for (var layerName in uniqueTextLayerNames) {
     if (uniqueTextLayerNames.hasOwnProperty(layerName)) {
-      headers.push(layerName); // Use the full layer name
+      headers.push(layerName);
     }
   }
 
-  var csvContent = headers.join(",") + "\n";
+  var csvContent = headers.join(delimiter) + "\n";
 
-  // Iterate over comps with a traditional for loop
   for (var i = 0; i < comps.length; i++) {
     var compObj = comps[i];
-    var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"']; // Start row with composition name
+    var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"'];
 
-    // Iterate over headers to fill row with data for each text layer or empty if none
     for (var j = 1; j < headers.length; j++) {
-      var layerName = headers[j];
-      var textContent = compObj.textLayersContent[layerName];
+      var header = headers[j];
+      var textContent = compObj.textLayersContent[header];
       compRow.push(
         textContent ? '"' + textContent.replace(/"/g, '""') + '"' : '""'
       );
     }
 
-    // Join row data and add to CSV content
-    csvContent += compRow.join(",") + "\n";
+    csvContent += compRow.join(delimiter) + "\n";
   }
 
-  // Save CSV file with the generated content
-  saveCSVFile(csvContent);
+  saveDelimitedFile(csvContent, delimiter);
 }
 
-function saveCSVFile(csvContent) {
-  var file = new File(File.saveDialog("Save your CSV file", "*.csv"));
+function saveDelimitedFile(content, delimiter) {
+  var fileExtension = delimiter === "," ? "*.csv" : "*.txt";
+  var file = new File(File.saveDialog("Save your file", fileExtension));
   if (file) {
     file.encoding = "UTF-8";
     file.open("w");
-    var writeSuccess = file.write(csvContent);
-    file.close();
-    if (writeSuccess) {
-      alert("CSV file saved successfully!");
+    if (file.write(content)) {
+      alert("File saved successfully!");
     } else {
       alert("Failed to write to file.");
     }
+    file.close();
   } else {
     alert("File save cancelled or failed to open file.");
   }
