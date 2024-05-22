@@ -1,1 +1,0 @@
-"# AE-text-extractor" 
