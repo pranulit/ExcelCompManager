@@ -1,28 +1,32 @@
-// Create a new floating palette window
-var myWindow = new Window("palette", "Comp-Sheet-Flow", undefined);
-myWindow.orientation = "column";
+function createUI(thisObj) {
+  var myPanel =
+    thisObj instanceof Panel
+      ? thisObj
+      : new Window("palette", "Comp-Sheet-Flow", undefined, {
+          resizeable: true,
+        });
+  myPanel.orientation = "column";
 
-// Button for 'Comps from Names'
-var button1 = myWindow.add("button", undefined, "Comps from Names");
-button1.onClick = function () {
-  compsFromNames();
-};
+  // Button for 'Comps from Names'
+  var button1 = myPanel.add("button", undefined, "Comps from Names");
+  button1.onClick = function () {
+    compsFromNames();
+  };
 
-// Button for 'Content Extract'
-var button2 = myWindow.add("button", undefined, "Content Extract");
-button2.onClick = function () {
-  contentExtract();
-};
+  // Button for 'Content Extract'
+  var button2 = myPanel.add("button", undefined, "Content Extract");
+  button2.onClick = function () {
+    contentExtract();
+  };
 
-// Button for 'Content Import'
-var button3 = myWindow.add("button", undefined, "Content Import");
-button3.onClick = function () {
-  contentImport();
-};
+  // Button for 'Content Import'
+  var button3 = myPanel.add("button", undefined, "Content Import");
+  button3.onClick = function () {
+    contentImport();
+  };
 
-// Display the window
-myWindow.center();
-myWindow.show();
+  return myPanel;
+}
 
 // Function definitions
 function compsFromNames() {
@@ -828,4 +832,13 @@ function contentImport() {
 
     main();
   }
+}
+
+var myToolsPanel = createUI(this);
+
+if (myToolsPanel instanceof Window) {
+  myToolsPanel.center();
+  myToolsPanel.show();
+} else {
+  myToolsPanel.layout.layout(true);
 }
