@@ -119,8 +119,8 @@ function searchPrecomps(comp, parentCompData, project) {
   for (var k = 1; k <= comp.numLayers; k++) {
     var layer = comp.layer(k);
 
-    // Capture all layers that start with ">"
-    if (layer.name.substring(0, 1) === ">") {
+    // Capture all layers that start with "$"
+    if (layer.name.substring(0, 1) === "$") {
       hasGreaterThanLayer = true;
       var filePath =
         layer.source && layer.source.file
@@ -190,7 +190,6 @@ function exportSelectedCompositions(compCheckboxes, format) {
 function generateAndSaveCSV(comps, uniqueFileLayerNames, delimiter) {
   var headers = ["Composition Name"];
 
-  // Add headers for file layers without the first symbol ">"
   for (var layerName in uniqueFileLayerNames) {
     if (uniqueFileLayerNames.hasOwnProperty(layerName)) {
       headers.push(layerName);

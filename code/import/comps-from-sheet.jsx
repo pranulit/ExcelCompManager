@@ -38,18 +38,42 @@
 
     outputModuleDropdown.selection = 0; // Default selection
 
+    // Folder selection for render destination
+    dialog.add("statictext", undefined, "Select Destination Folder:");
+    var folderGroup = dialog.add("group");
+    folderGroup.orientation = "row";
+    var folderPathText = folderGroup.add(
+      "edittext",
+      undefined,
+      "~/Desktop/Render/"
+    );
+    folderPathText.characters = 50;
+    var browseButton = folderGroup.add("button", undefined, "Browse");
+
+    browseButton.onClick = function () {
+      var folder = Folder.selectDialog("Select Render Destination Folder");
+      if (folder) {
+        folderPathText.text = folder.fsName;
+      }
+    };
+
     // Yes and No buttons
     var buttonGroup = dialog.add("group");
     buttonGroup.orientation = "row";
     var yesButton = buttonGroup.add("button", undefined, "Yes");
     var noButton = buttonGroup.add("button", undefined, "No");
 
-    var result = { addToRenderQueue: false, outputModule: null };
+    var result = {
+      addToRenderQueue: false,
+      outputModule: null,
+      outputFolder: null,
+    };
     yesButton.onClick = function () {
       result.addToRenderQueue = true;
       result.outputModule = outputModuleDropdown.selection
         ? outputModuleDropdown.selection.text
         : null;
+      result.outputFolder = folderPathText.text;
       dialog.close();
     };
     noButton.onClick = function () {
@@ -141,9 +165,9 @@
         }
       }
 
-      // Replace layers with corresponding imported files if the layer name starts with ">"
-      if (layerName.indexOf(">") === 0) {
-        var columnName = layerName.substring(1); // Remove the ">" symbol
+      // Replace layers with corresponding imported files if the layer name starts with "$"
+      if (layerName.indexOf("$") === 0) {
+        var columnName = layerName.substring(1); // Remove the "$" symbol
         var importedFile = importedFiles[columnName];
 
         if (importedFile) {
@@ -200,7 +224,7 @@
 
     // Import files and store them in the dictionary
     for (var key in rowData) {
-      if (key.indexOf(">") === 0) {
+      if (key.indexOf("$") === 0) {
         var filePath = rowData[key];
         if (filePath) {
           var importedFile = importFile(filePath, importFolder);
@@ -220,7 +244,79 @@
     return newComp;
   }
 
-  // Main function
+  function addToRenderQueueAndVerify(comp, outputModule, outputFolder) {
+    // Ensure the output folder exists
+    var outputDir = new Folder(outputFolder);
+    if (!outputDir.exists) {
+      var created = outputDir.create();
+      if (!created) {
+        alert("Failed to create output directory: " + outputFolder);
+        return null;
+      }
+    }
+
+    var renderQueueItem = app.project.renderQueue.items.add(comp);
+    renderQueueItem.outputModule(1).applyTemplate(outputModule);
+
+    // Use appropriate path separator
+    var pathSeparator = Folder.fs == "Macintosh" ? "/" : "\\";
+    var outputFilePath = outputFolder + pathSeparator + comp.name + ".mp4";
+
+    renderQueueItem.outputModule(1).file = new File(outputFilePath);
+
+    return renderQueueItem;
+  }
+
+  function checkRenderStatus(renderQueueItem) {
+    var status = renderQueueItem.status;
+    var statusMessage = "";
+
+    switch (status) {
+      case RQItemStatus.QUEUED:
+        statusMessage = "Queued";
+        break;
+      case RQItemStatus.RENDERING:
+        statusMessage = "Rendering";
+        break;
+      case RQItemStatus.DONE:
+        statusMessage = "Done";
+        break;
+      case RQItemStatus.ERR_STOPPED:
+        statusMessage = "Error Stopped";
+        break;
+      case RQItemStatus.USER_STOPPED:
+        statusMessage = "User Stopped";
+        break;
+      default:
+        statusMessage = "Unknown Status (" + status + ")";
+        break;
+    }
+
+    return statusMessage;
+  }
+
+  function renderAndProvideFeedback() {
+    var renderQueue = app.project.renderQueue;
+    var totalItems = renderQueue.numItems;
+    var completedItems = 0;
+
+    for (var i = 1; i <= totalItems; i++) {
+      var renderQueueItem = renderQueue.item(i);
+
+      if (renderQueueItem.status == RQItemStatus.QUEUED) {
+        renderQueue.render();
+      }
+
+      while (renderQueueItem.status == RQItemStatus.RENDERING) {
+        $.sleep(1000); // Wait for 1 second
+      }
+
+      completedItems++;
+    }
+
+    alert("Rendering complete. " + completedItems + " items rendered.");
+  }
+
   function main() {
     var outputFolderName = "Generated Comps"; // Name of the folder for new compositions
     var precompsFolderName = "Precomps"; // Name of the folder for new precompositions
@@ -272,10 +368,18 @@
             importFolder
           );
           if (renderOptions.addToRenderQueue && renderOptions.outputModule) {
-            var renderQueueItem = app.project.renderQueue.items.add(newComp);
-            renderQueueItem
-              .outputModule(1)
-              .applyTemplate(renderOptions.outputModule);
+            var renderQueueItem = addToRenderQueueAndVerify(
+              newComp,
+              renderOptions.outputModule,
+              renderOptions.outputFolder
+            );
+            if (renderQueueItem.status == 3013) {
+              alert(
+                "Render queue item status is 3013. Please check the output module and destination folder settings."
+              );
+            }
+          } else {
+            messages.push("No output module selected for: " + newComp.name);
           }
         } else {
           var message = "Composition not found: " + compName;
@@ -285,10 +389,10 @@
       }
     }
 
-    // Show all messages at the end
-    var successMessage =
-      "Script completed successfully.\n\n" + messages.join("\n");
-    alert(successMessage);
+    // Start rendering process with feedback
+    if (renderOptions.addToRenderQueue) {
+      renderAndProvideFeedback();
+    }
   }
 
   main();

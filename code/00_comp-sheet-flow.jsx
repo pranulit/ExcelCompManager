@@ -60,28 +60,44 @@ function createUI(thisObj) {
 function applySyntax(applyToText, applyToFiles) {
   var project = app.project;
 
-  for (var i = 1; i <= project.numItems; i++) {
-    if (project.item(i) instanceof CompItem) {
-      var comp = project.item(i);
+  // Begin the undo group
+  app.beginUndoGroup("Apply Syntax");
 
-      for (var j = 1; j <= comp.numLayers; j++) {
-        var layer = comp.layer(j);
+  function processComp(comp) {
+    for (var j = 1; j <= comp.numLayers; j++) {
+      var layer = comp.layer(j);
 
-        if (applyToText && layer instanceof TextLayer) {
-          if (layer.name.charAt(0) !== "^") {
-            layer.name = "^" + layer.name;
-          }
+      if (applyToText && layer instanceof TextLayer) {
+        if (layer.name.charAt(0) !== "@") {
+          layer.name = "@" + layer.name;
         }
+      }
 
-        if (applyToFiles && layer.source instanceof FootageItem) {
-          if (layer.name.charAt(0) !== ">") {
-            layer.name = ">" + layer.name;
-          }
+      if (applyToFiles && layer.source instanceof FootageItem) {
+        if (layer.name.charAt(0) !== "$" && layer.name.charAt(0) !== "#") {
+          layer.name = "$" + layer.name;
         }
+      }
+
+      // Recursively process precompositions
+      if (layer.source instanceof CompItem) {
+        processComp(layer.source);
       }
     }
   }
+
+  for (var i = 1; i <= project.numItems; i++) {
+    if (project.item(i) instanceof CompItem) {
+      processComp(project.item(i));
+    }
+  }
+
+  // End the undo group
+  app.endUndoGroup();
 }
+
+// Example usage
+applySyntax(true, true);
 
 // Function definitions
 function compsFromNames() {
@@ -232,12 +248,12 @@ function compsFromNames() {
 
             var solid = comp.layers.addSolid(
               [1, 1, 1],
-              ">offline",
+              "$offline",
               comp.width,
               comp.height,
               1
             );
-            solid.name = ">offline";
+            solid.name = "$offline";
 
             if (files[i]) {
               var filePath = files[i];
@@ -426,17 +442,24 @@ function contentExtract() {
     for (var k = 1; k <= comp.numLayers; k++) {
       var layer = comp.layer(k);
 
-      // Extract text from text layers
+      // Recursively process precompositions first
+      if (layer.source instanceof CompItem) {
+        searchPrecomps(layer.source, parentCompData, project);
+      }
+
+      // Extract text from text layers that contain @ symbol
       if (layer instanceof TextLayer && layer.property("Source Text") != null) {
-        var textSource = layer.property("Source Text").value;
-        if (textSource) {
-          var textContent = textSource.text.replace(/[\r\n]+/g, " ");
-          parentCompData.textLayers[layer.name] = textContent;
+        if (layer.name.substring(0, 1) === "@") {
+          var textSource = layer.property("Source Text").value;
+          if (textSource) {
+            var textContent = textSource.text.replace(/[\r\n]+/g, " ");
+            parentCompData.textLayers[layer.name] = textContent;
+          }
         }
       }
 
-      // Capture all layers that start with ">"
-      if (layer.name.substring(0, 1) === ">") {
+      // Capture all layers that start with "$"
+      if (layer.name.substring(0, 1) === "$") {
         hasGreaterThanLayer = true;
         var filePath =
           layer.source && layer.source.file
@@ -607,7 +630,6 @@ function contentExtract() {
   }
 
   createUI();
-  //works
 }
 
 function contentImport() {
@@ -658,18 +680,42 @@ function contentImport() {
 
       outputModuleDropdown.selection = 0; // Default selection
 
+      // Folder selection for render destination
+      dialog.add("statictext", undefined, "Select Destination Folder:");
+      var folderGroup = dialog.add("group");
+      folderGroup.orientation = "row";
+      var folderPathText = folderGroup.add(
+        "edittext",
+        undefined,
+        "~/Desktop/Render/"
+      );
+      folderPathText.characters = 50;
+      var browseButton = folderGroup.add("button", undefined, "Browse");
+
+      browseButton.onClick = function () {
+        var folder = Folder.selectDialog("Select Render Destination Folder");
+        if (folder) {
+          folderPathText.text = folder.fsName;
+        }
+      };
+
       // Yes and No buttons
       var buttonGroup = dialog.add("group");
       buttonGroup.orientation = "row";
       var yesButton = buttonGroup.add("button", undefined, "Yes");
       var noButton = buttonGroup.add("button", undefined, "No");
 
-      var result = { addToRenderQueue: false, outputModule: null };
+      var result = {
+        addToRenderQueue: false,
+        outputModule: null,
+        outputFolder: null,
+      };
       yesButton.onClick = function () {
         result.addToRenderQueue = true;
         result.outputModule = outputModuleDropdown.selection
           ? outputModuleDropdown.selection.text
           : null;
+        result.outputFolder = folderPathText.text;
         dialog.close();
       };
       noButton.onClick = function () {
@@ -761,9 +807,9 @@ function contentImport() {
           }
         }
 
-        // Replace layers with corresponding imported files if the layer name starts with ">"
-        if (layerName.indexOf(">") === 0) {
-          var columnName = layerName.substring(1); // Remove the ">" symbol
+        // Replace layers with corresponding imported files if the layer name starts with "$"
+        if (layerName.indexOf("$") === 0) {
+          var columnName = layerName.substring(1); // Remove the "$" symbol
           var importedFile = importedFiles[columnName];
 
           if (importedFile) {
@@ -820,7 +866,7 @@ function contentImport() {
 
       // Import files and store them in the dictionary
       for (var key in rowData) {
-        if (key.indexOf(">") === 0) {
+        if (key.indexOf("$") === 0) {
           var filePath = rowData[key];
           if (filePath) {
             var importedFile = importFile(filePath, importFolder);
@@ -846,7 +892,79 @@ function contentImport() {
       return newComp;
     }
 
-    // Main function
+    function addToRenderQueueAndVerify(comp, outputModule, outputFolder) {
+      // Ensure the output folder exists
+      var outputDir = new Folder(outputFolder);
+      if (!outputDir.exists) {
+        var created = outputDir.create();
+        if (!created) {
+          alert("Failed to create output directory: " + outputFolder);
+          return null;
+        }
+      }
+
+      var renderQueueItem = app.project.renderQueue.items.add(comp);
+      renderQueueItem.outputModule(1).applyTemplate(outputModule);
+
+      // Use appropriate path separator
+      var pathSeparator = Folder.fs == "Macintosh" ? "/" : "\\";
+      var outputFilePath = outputFolder + pathSeparator + comp.name + ".mp4";
+
+      renderQueueItem.outputModule(1).file = new File(outputFilePath);
+
+      return renderQueueItem;
+    }
+
+    function checkRenderStatus(renderQueueItem) {
+      var status = renderQueueItem.status;
+      var statusMessage = "";
+
+      switch (status) {
+        case RQItemStatus.QUEUED:
+          statusMessage = "Queued";
+          break;
+        case RQItemStatus.RENDERING:
+          statusMessage = "Rendering";
+          break;
+        case RQItemStatus.DONE:
+          statusMessage = "Done";
+          break;
+        case RQItemStatus.ERR_STOPPED:
+          statusMessage = "Error Stopped";
+          break;
+        case RQItemStatus.USER_STOPPED:
+          statusMessage = "User Stopped";
+          break;
+        default:
+          statusMessage = "Unknown Status (" + status + ")";
+          break;
+      }
+
+      return statusMessage;
+    }
+
+    function renderAndProvideFeedback() {
+      var renderQueue = app.project.renderQueue;
+      var totalItems = renderQueue.numItems;
+      var completedItems = 0;
+
+      for (var i = 1; i <= totalItems; i++) {
+        var renderQueueItem = renderQueue.item(i);
+
+        if (renderQueueItem.status == RQItemStatus.QUEUED) {
+          renderQueue.render();
+        }
+
+        while (renderQueueItem.status == RQItemStatus.RENDERING) {
+          $.sleep(1000); // Wait for 1 second
+        }
+
+        completedItems++;
+      }
+
+      alert("Rendering complete. " + completedItems + " items rendered.");
+    }
+
     function main() {
       var outputFolderName = "Generated Comps"; // Name of the folder for new compositions
       var precompsFolderName = "Precomps"; // Name of the folder for new precompositions
@@ -898,10 +1016,18 @@ function contentImport() {
               importFolder
             );
             if (renderOptions.addToRenderQueue && renderOptions.outputModule) {
-              var renderQueueItem = app.project.renderQueue.items.add(newComp);
-              renderQueueItem
-                .outputModule(1)
-                .applyTemplate(renderOptions.outputModule);
+              var renderQueueItem = addToRenderQueueAndVerify(
+                newComp,
+                renderOptions.outputModule,
+                renderOptions.outputFolder
+              );
+              if (renderQueueItem.status == 3013) {
+                alert(
+                  "Render queue item status is 3013. Please check the output module and destination folder settings."
+                );
+              }
+            } else {
+              messages.push("No output module selected for: " + newComp.name);
             }
           } else {
             var message = "Composition not found: " + compName;
@@ -911,10 +1037,10 @@ function contentImport() {
         }
       }
 
-      // Show all messages at the end
-      var successMessage =
-        "Script completed successfully.\n\n" + messages.join("\n");
-      alert(successMessage);
+      // Start rendering process with feedback
+      if (renderOptions.addToRenderQueue) {
+        renderAndProvideFeedback();
+      }
     }
 
     main();
@@ -929,5 +1055,3 @@ if (myToolsPanel instanceof Window) {
 } else {
   myToolsPanel.layout.layout(true);
 }
-
-//working

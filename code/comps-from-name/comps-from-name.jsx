@@ -141,12 +141,12 @@
 
           var solid = comp.layers.addSolid(
             [1, 1, 1],
-            ">offline",
+            "$offline",
             comp.width,
             comp.height,
             1
           );
-          solid.name = ">offline";
+          solid.name = "$offline";
 
           if (files[i]) {
             var filePath = files[i];

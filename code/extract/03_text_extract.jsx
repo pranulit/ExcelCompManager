@@ -118,12 +118,14 @@ function searchPrecomps(comp, parentCompTextLayers) {
       searchPrecomps(layer.source, parentCompTextLayers);
     }
 
-    // Check if the layer is a text layer and has the "Source Text" property
+    // Check if the layer is a text layer, has the "Source Text" property, and the layer name starts with "@"
     if (layer instanceof TextLayer && layer.property("Source Text") != null) {
-      var textSource = layer.property("Source Text").value;
-      if (textSource) {
-        var textContent = textSource.text.replace(/[\r\n]+/g, " "); // Clean up new lines
-        parentCompTextLayers[layer.name] = textContent; // Store text content by full layer name
+      if (layer.name.substring(0, 1) === "@") {
+        var textSource = layer.property("Source Text").value;
+        if (textSource) {
+          var textContent = textSource.text.replace(/[\r\n]+/g, " "); // Clean up new lines
+          parentCompTextLayers[layer.name] = textContent; // Store text content by full layer name
+        }
       }
     }
   }

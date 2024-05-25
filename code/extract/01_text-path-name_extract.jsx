@@ -142,17 +142,24 @@ function searchPrecomps(comp, parentCompData, project) {
   for (var k = 1; k <= comp.numLayers; k++) {
     var layer = comp.layer(k);
 
-    // Extract text from text layers
+    // Recursively process precompositions first
+    if (layer.source instanceof CompItem) {
+      searchPrecomps(layer.source, parentCompData, project);
+    }
+
+    // Extract text from text layers that contain @ symbol
     if (layer instanceof TextLayer && layer.property("Source Text") != null) {
-      var textSource = layer.property("Source Text").value;
-      if (textSource) {
-        var textContent = textSource.text.replace(/[\r\n]+/g, " ");
-        parentCompData.textLayers[layer.name] = textContent;
+      if (layer.name.substring(0, 1) === "@") {
+        var textSource = layer.property("Source Text").value;
+        if (textSource) {
+          var textContent = textSource.text.replace(/[\r\n]+/g, " ");
+          parentCompData.textLayers[layer.name] = textContent;
+        }
       }
     }
 
     // Capture all layers that start with ">"
-    if (layer.name.substring(0, 1) === ">") {
+    if (layer.name.substring(0, 1) === "$") {
       hasGreaterThanLayer = true;
       var filePath =
         layer.source && layer.source.file
@@ -321,4 +328,3 @@ function saveDelimitedFile(content, delimiter) {
 }
 
 createUI();
-//works
