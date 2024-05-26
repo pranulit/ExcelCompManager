@@ -73,8 +73,6 @@
   }
 
   function createCompositions(compsInput, filesInput, fps) {
-    alert("createCompositions called");
-
     var lines = compsInput.split("\n");
     for (var i = 0; i < lines.length; i++) {
       lines[i] = lines[i].replace(/^\s+|\s+$/g, "");
@@ -90,10 +88,6 @@
     files = files.filter(function (line) {
       return line !== "";
     });
-
-    alert("Compositions Input: " + lines.join(", "));
-    alert("Files Input: " + files.join(", "));
-    alert("FPS: " + fps);
 
     if (lines.length === 0) {
       alert("No composition names provided.");
@@ -116,58 +110,63 @@
     try {
       for (var i = 0; i < lines.length; i++) {
         var line = lines[i];
-        alert("Processing line: " + line);
         var parts = line.split("_");
-        if (parts.length < 3) {
-          alert("Invalid composition name format: " + line);
-          continue;
-        }
 
-        var duration = parts[2].match(/(\d+)s/);
-        var formatMatch = parts[2].match(/(\d+x\d+)/);
+        var duration = parts[2] ? parts[2].match(/(\d+)s/) : null;
+        var formatMatch = parts[2] ? parts[2].match(/(\d+x\d+)/) : null;
         var format = formatMatch ? formatMatch[1] : defaultFormat;
 
-        if (duration && compSettings[format]) {
-          var comp = app.project.items.addComp(
-            parts[0],
-            compSettings[format].width,
-            compSettings[format].height,
-            1,
-            parseFloat(duration[1]),
-            fps
-          );
-          comp.parentFolder = mainFolder;
-          comp.name = line;
+        if (!duration) {
+          // alert(
+          //   "Invalid or missing duration in composition name: " +
+          //     line +
+          //     ". Defaulting to 30 seconds."
+          // );
+          duration = ["", "30"];
+        }
+        if (!compSettings[format]) {
+          // alert(
+          //   "Invalid or missing format in composition name: " +
+          //     line +
+          //     ". Defaulting to 16x9."
+          // );
+          format = defaultFormat;
+        }
 
-          var solid = comp.layers.addSolid(
-            [1, 1, 1],
-            "$offline",
-            comp.width,
-            comp.height,
-            1
-          );
-          solid.name = "$offline";
+        var comp = app.project.items.addComp(
+          parts[0],
+          compSettings[format].width,
+          compSettings[format].height,
+          1,
+          parseFloat(duration[1]),
+          fps
+        );
+        comp.parentFolder = mainFolder;
+        comp.name = line;
 
-          if (files[i]) {
-            var filePath = files[i];
-            alert("Processing file: " + filePath);
-            if (filePath !== "") {
-              var importOptions = new ImportOptions(File(filePath));
-              if (importOptions.canImportAs(ImportAsType.FOOTAGE)) {
-                var footage = app.project.importFile(importOptions);
-                footage.parentFolder = importedFolder;
-                var newLayer = comp.layers.add(footage);
-                newLayer.moveBefore(solid);
-                solid.remove();
-              } else {
-                alert(
-                  "File at " + filePath + " cannot be imported as footage."
-                );
-              }
+        var solid = comp.layers.addSolid(
+          [1, 1, 1],
+          "$offline",
+          comp.width,
+          comp.height,
+          1
+        );
+        solid.name = "$offline";
+
+        if (files[i]) {
+          var filePath = files[i];
+          if (filePath !== "") {
+            var importOptions = new ImportOptions(File(filePath));
+            if (importOptions.canImportAs(ImportAsType.FOOTAGE)) {
+              var footage = app.project.importFile(importOptions);
+              footage.parentFolder = importedFolder;
+              var newLayer = comp.layers.add(footage);
+              newLayer.moveBefore(solid);
+              solid.remove();
+            } else {
+              alert("File at " + filePath + " cannot be imported as footage.");
             }
           }
-        } else {
-          alert("Could not determine valid duration/format for: " + line);
         }
       }
     } catch (e) {
