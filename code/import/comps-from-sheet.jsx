@@ -13,21 +13,22 @@
     }
   }
 
-  // Function to determine the delimiter based on the file extension
-  function getDelimiter(filePath) {
-    var parts = filePath.split(".");
-    var extension = parts[parts.length - 1].toLowerCase();
-    switch (extension) {
-      case "csv":
-        return ",";
-      case "tsv":
-        return "\t";
-      case "txt":
-        return "\t"; // Default delimiter for txt files (can be changed)
-      default:
-        return ","; // Default delimiter if unknown
-    }
+// Function to determine the delimiter based on the file extension and content
+function getDelimiter(filePath) {
+  var parts = filePath.split(".");
+  var extension = parts[parts.length - 1].toLowerCase();
+  switch (extension) {
+    case "csv":
+      return ";"; // Change to semicolon to match the provided CSV
+    case "tsv":
+      return "\t";
+    case "txt":
+      return "\t"; // Default delimiter for txt files (can be changed)
+    default:
+      return ","; // Default delimiter if unknown
   }
+}
+
 
   // Function to display UI for render settings and adding to render queue
   function showRenderQueueDialog() {
