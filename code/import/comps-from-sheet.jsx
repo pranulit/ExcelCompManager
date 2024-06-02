@@ -1,8 +1,8 @@
 {
   function chooseFilePath() {
     var file = File.openDialog(
-      "Select a TSV file",
-      "TSV files:*.tsv;*.txt",
+      "Select a CSV, TSV, or delimited TXT file",
+      "Delimited Text files:*.csv;*.tsv;*.txt",
       false
     );
     if (file) {
@@ -10,6 +10,22 @@
     } else {
       alert("No file was selected.");
       return null; // Return null if no file is selected
+    }
+  }
+
+  // Function to determine the delimiter based on the file extension
+  function getDelimiter(filePath) {
+    var parts = filePath.split(".");
+    var extension = parts[parts.length - 1].toLowerCase();
+    switch (extension) {
+      case "csv":
+        return ",";
+      case "tsv":
+        return "\t";
+      case "txt":
+        return "\t"; // Default delimiter for txt files (can be changed)
+      default:
+        return ","; // Default delimiter if unknown
     }
   }
 
@@ -91,15 +107,16 @@
     throw new Error("Script terminated: No file selected.");
   }
 
-  // Function to read and parse the TSV file
+  // Function to read and parse the delimited text file
   function parseDocument(filePath) {
     var file = new File(filePath);
+    var delimiter = getDelimiter(filePath);
     var data = [];
     if (file.open("r")) {
-      var headers = file.readln().split("\t"); // Read header line
+      var headers = file.readln().split(delimiter); // Read header line
       while (!file.eof) {
         var line = file.readln();
-        var columns = line.split("\t");
+        var columns = line.split(delimiter);
         var row = {};
         for (var i = 0; i < headers.length; i++) {
           row[headers[i]] = columns[i];

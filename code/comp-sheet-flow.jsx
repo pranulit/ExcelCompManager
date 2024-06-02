@@ -41,14 +41,14 @@ function createUI(thisObj) {
   button1.preferredSize.width = checkboxesRowWidth;
 
   // Button for 'Content Extract'
-  var button2 = myPanel.add("button", undefined, "Create a CSV/TXT");
+  var button2 = myPanel.add("button", undefined, "Create a CSV / TXT");
   button2.preferredSize.width = checkboxesRowWidth;
   button2.onClick = function () {
     textPathNameExtract();
   };
 
   // Button for 'Content Import'
-  var button3 = myPanel.add("button", undefined, "Import a TXT");
+  var button3 = myPanel.add("button", undefined, "Import a CSV / TXT");
   button3.preferredSize.width = checkboxesRowWidth;
   button3.onClick = function () {
     compsFromSheet();
@@ -108,19 +108,19 @@ function compsFromName() {
         : new Window("palette", "Create Compositions", undefined, {
             resizeable: true,
           });
-  
+
     if (myPanel != null) {
       var textGroup = myPanel.add("group");
       textGroup.orientation = "row";
       textGroup.add("statictext", undefined, "Enter Composition Names:");
-  
+
       var inputGroup = myPanel.add("group");
       inputGroup.orientation = "row";
       var compsInput = inputGroup.add("edittext", undefined, "", {
         multiline: true,
       });
       compsInput.size = [300, 100];
-  
+
       var fileGroup = myPanel.add("group");
       fileGroup.orientation = "row";
       fileGroup.add(
@@ -128,14 +128,14 @@ function compsFromName() {
         undefined,
         "Enter Offline File Paths (optional):"
       );
-  
+
       var fileInputGroup = myPanel.add("group");
       fileInputGroup.orientation = "row";
       var filesInput = fileInputGroup.add("edittext", undefined, "", {
         multiline: true,
       });
       filesInput.size = [300, 100];
-  
+
       var browseFilesButton = fileGroup.add("button", undefined, "Browse...");
       browseFilesButton.onClick = function () {
         var filePaths = File.openDialog(
@@ -151,7 +151,7 @@ function compsFromName() {
           filesInput.text = pathArray.join("\n");
         }
       };
-  
+
       var fpsGroup = myPanel.add("group");
       fpsGroup.orientation = "row";
       fpsGroup.add("statictext", undefined, "Select FPS:");
@@ -162,10 +162,14 @@ function compsFromName() {
         "60",
       ]);
       fpsDropdown.selection = 1;
-  
+
       var buttonGroup = myPanel.add("group");
       buttonGroup.orientation = "row";
-      var createBtn = buttonGroup.add("button", undefined, "Create Compositions");
+      var createBtn = buttonGroup.add(
+        "button",
+        undefined,
+        "Create Compositions"
+      );
       createBtn.onClick = function () {
         createCompositions(
           compsInput.text,
@@ -174,14 +178,14 @@ function compsFromName() {
         );
       };
     }
-  
+
     function createCompositions(compsInput, filesInput, fps) {
       var lines = compsInput.split("\n");
-      
+
       for (var i = 0; i < lines.length; i++) {
         lines[i] = lines[i].replace(/^\s+|\s+$/g, "");
       }
-  
+
       // Manual filtering of empty lines
       var filteredLines = [];
       for (var i = 0; i < lines.length; i++) {
@@ -190,38 +194,35 @@ function compsFromName() {
         }
       }
       lines = filteredLines;
-  
-  
+
       var files = filesInput.split("\n");
-      
+
       for (var i = 0; i < files.length; i++) {
         files[i] = files[i].replace(/^\s+|\s+$/g, "");
       }
-  
+
       // Manual filtering of empty file paths
       var filteredFiles = [];
       for (var i = 0; i < files.length; i++) {
         if (files[i] !== "") {
-
-            filteredFiles.push(files[i]);
+          filteredFiles.push(files[i]);
         }
       }
       files = filteredFiles;
-  
-  
+
       if (lines.length === 0) {
         return;
       }
-  
+
       try {
         var mainFolder = app.project.items.addFolder("01_main");
-  
+
         var importedFolder = app.project.items.addFolder("02_imported files");
       } catch (folderError) {
         alert("Error creating folders: " + folderError.message);
         return;
       }
-  
+
       var compSettings = {
         "16x9": { width: 1920, height: 1080 },
         "1x1": { width: 1080, height: 1080 },
@@ -229,25 +230,25 @@ function compsFromName() {
         "9x16": { width: 1080, height: 1920 },
       };
       var defaultFormat = "16x9";
-  
+
       app.beginUndoGroup("Create Compositions");
-  
+
       try {
         for (var i = 0; i < lines.length; i++) {
           var line = lines[i];
           var parts = line.split("_");
-  
+
           var duration = parts[2] ? parts[2].match(/(\d+)s/) : null;
           var formatMatch = parts[2] ? parts[2].match(/(\d+x\d+)/) : null;
           var format = formatMatch ? formatMatch[1] : defaultFormat;
-  
+
           if (!duration) {
             duration = ["", "30"];
           }
           if (!compSettings[format]) {
             format = defaultFormat;
           }
-  
+
           var comp = app.project.items.addComp(
             parts[0],
             compSettings[format].width,
@@ -258,7 +259,7 @@ function compsFromName() {
           );
           comp.parentFolder = mainFolder;
           comp.name = line;
-  
+
           var solid = comp.layers.addSolid(
             [1, 1, 1],
             "$offline",
@@ -267,7 +268,7 @@ function compsFromName() {
             1
           );
           solid.name = "$offline";
-  
+
           if (files[i]) {
             var filePath = files[i];
             if (filePath !== "") {
@@ -280,10 +281,14 @@ function compsFromName() {
                   newLayer.moveBefore(solid);
                   solid.remove();
                 } else {
-                  alert("File at " + filePath + " cannot be imported as footage.");
+                  alert(
+                    "File at " + filePath + " cannot be imported as footage."
+                  );
                 }
               } catch (error) {
-                alert("Error importing file: " + filePath + "\n" + error.message);
+                alert(
+                  "Error importing file: " + filePath + "\n" + error.message
+                );
               }
             }
           }
@@ -291,10 +296,10 @@ function compsFromName() {
       } catch (e) {
         alert("Error in createCompositions: " + e.toString());
       }
-  
+
       app.endUndoGroup();
     }
-  
+
     if (myPanel instanceof Window) {
       myPanel.center();
       myPanel.show();
@@ -647,8 +652,8 @@ function compsFromSheet() {
   {
     function chooseFilePath() {
       var file = File.openDialog(
-        "Select a TSV file",
-        "TSV files:*.tsv;*.txt",
+        "Select a CSV, TSV, or delimited TXT file",
+        "Delimited Text files:*.csv;*.tsv;*.txt",
         false
       );
       if (file) {
@@ -656,6 +661,22 @@ function compsFromSheet() {
       } else {
         alert("No file was selected.");
         return null; // Return null if no file is selected
+      }
+    }
+
+    // Function to determine the delimiter based on the file extension
+    function getDelimiter(filePath) {
+      var parts = filePath.split(".");
+      var extension = parts[parts.length - 1].toLowerCase();
+      switch (extension) {
+        case "csv":
+          return ",";
+        case "tsv":
+          return "\t";
+        case "txt":
+          return "\t"; // Default delimiter for txt files (can be changed)
+        default:
+          return ","; // Default delimiter if unknown
       }
     }
 
@@ -744,15 +765,16 @@ function compsFromSheet() {
       throw new Error("Script terminated: No file selected.");
     }
 
-    // Function to read and parse the TSV file
+    // Function to read and parse the delimited text file
     function parseDocument(filePath) {
       var file = new File(filePath);
+      var delimiter = getDelimiter(filePath);
       var data = [];
       if (file.open("r")) {
-        var headers = file.readln().split("\t"); // Read header line
+        var headers = file.readln().split(delimiter); // Read header line
         while (!file.eof) {
           var line = file.readln();
-          var columns = line.split("\t");
+          var columns = line.split(delimiter);
           var row = {};
           for (var i = 0; i < headers.length; i++) {
             row[headers[i]] = columns[i];
