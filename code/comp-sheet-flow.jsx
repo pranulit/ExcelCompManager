@@ -664,19 +664,27 @@ function compsFromSheet() {
     }
   }
 
-// Function to determine the delimiter based on the file extension and content
+// Function to determine the delimiter based on the file extension and OS
 function getDelimiter(filePath) {
   var parts = filePath.split(".");
   var extension = parts[parts.length - 1].toLowerCase();
+  var delimiter;
+
+  if ($.os.indexOf("Windows") !== -1) {
+    delimiter = ";";
+  } else {
+    delimiter = ",";
+  }
+
   switch (extension) {
     case "csv":
-      return ";"; // Change to semicolon to match the provided CSV
+      return delimiter;
     case "tsv":
       return "\t";
     case "txt":
       return "\t"; // Default delimiter for txt files (can be changed)
     default:
-      return ","; // Default delimiter if unknown
+      return delimiter; // Default delimiter if unknown
   }
 }
 
