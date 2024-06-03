@@ -13,30 +13,28 @@
     }
   }
 
-// Function to determine the delimiter based on the file extension and OS
-function getDelimiter(filePath) {
-  var parts = filePath.split(".");
-  var extension = parts[parts.length - 1].toLowerCase();
-  var delimiter;
+  function getDelimiter(filePath) {
+    var parts = filePath.split(".");
+    var extension = parts[parts.length - 1].toLowerCase();
+    var delimiter;
 
-  if ($.os.indexOf("Windows") !== -1) {
-    delimiter = ";";
-  } else {
-    delimiter = ",";
+    if ($.os.indexOf("Windows") !== -1) {
+      delimiter = ";";
+    } else {
+      delimiter = ",";
+    }
+
+    switch (extension) {
+      case "csv":
+        return delimiter;
+      case "tsv":
+        return "\t";
+      case "txt":
+        return "\t"; // Default delimiter for txt files (can be changed)
+      default:
+        return delimiter; // Default delimiter if unknown
+    }
   }
-
-  switch (extension) {
-    case "csv":
-      return delimiter;
-    case "tsv":
-      return "\t";
-    case "txt":
-      return "\t"; // Default delimiter for txt files (can be changed)
-    default:
-      return delimiter; // Default delimiter if unknown
-  }
-}
-
 
   // Function to display UI for render settings and adding to render queue
   function showRenderQueueDialog() {
@@ -122,10 +120,10 @@ function getDelimiter(filePath) {
     var delimiter = getDelimiter(filePath);
     var data = [];
     if (file.open("r")) {
-      var headers = file.readln().split(delimiter); // Read header line
+      var headers = parseLine(file.readln(), delimiter); // Read header line
       while (!file.eof) {
         var line = file.readln();
-        var columns = line.split(delimiter);
+        var columns = parseLine(line, delimiter);
         var row = {};
         for (var i = 0; i < headers.length; i++) {
           row[headers[i]] = columns[i];
@@ -137,6 +135,26 @@ function getDelimiter(filePath) {
       alert("Failed to open file: " + filePath);
     }
     return data;
+  }
+
+  // Function to correctly parse a CSV line, considering quoted fields
+  function parseLine(line, delimiter) {
+    var result = [];
+    var insideQuote = false;
+    var field = "";
+    for (var i = 0; i < line.length; i++) {
+      var currentChar = line.charAt(i);
+      if (currentChar === '"') {
+        insideQuote = !insideQuote; // Toggle the insideQuote flag
+      } else if (currentChar === delimiter && !insideQuote) {
+        result.push(field);
+        field = "";
+      } else {
+        field += currentChar;
+      }
+    }
+    result.push(field); // Add the last field
+    return result;
   }
 
   // Function to import a file and place it in the specified folder
