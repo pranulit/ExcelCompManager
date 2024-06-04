@@ -1153,6 +1153,56 @@ function compsFromSheet() {
       alert("Rendering complete. " + completedItems + " items rendered.");
     }
 
+    function showRenameCompsDialog(comps) {
+      var dialog = new Window("dialog", "Rename Compositions");
+
+      dialog.add("statictext", undefined, "Enter new names (one per line):");
+
+      var previousNamesGroup = dialog.add("group");
+      previousNamesGroup.orientation = "column";
+      for (var i = 0; i < comps.length; i++) {
+        previousNamesGroup.add(
+          "statictext",
+          undefined,
+          "Current Name: " + comps[i].name
+        );
+      }
+
+      var namesInput = dialog.add("edittext", undefined, "", {
+        multiline: true,
+      });
+      namesInput.preferredSize = { width: 300, height: 200 };
+
+      var buttonGroup = dialog.add("group");
+      buttonGroup.orientation = "row";
+      var okButton = buttonGroup.add("button", undefined, "OK");
+      var cancelButton = buttonGroup.add("button", undefined, "Cancel");
+
+      okButton.onClick = function () {
+        dialog.close(1);
+      };
+      cancelButton.onClick = function () {
+        dialog.close(0);
+      };
+
+      if (dialog.show() === 1) {
+        var newNames = namesInput.text.split("\n");
+        for (var i = 0; i < newNames.length; i++) {
+          newNames[i] = newNames[i].replace(/^\s+|\s+$/g, ""); // Trim whitespace
+        }
+        var renamedComps = [];
+        for (var i = 0; i < comps.length; i++) {
+          renamedComps.push({
+            oldName: comps[i].name,
+            newName: newNames[i] || comps[i].name, // Retain the default name if not renamed
+          });
+        }
+        return renamedComps;
+      } else {
+        return null; // User canceled the renaming
+      }
+    }
+
     function main() {
       var outputFolderName = "Generated Comps"; // Name of the folder for new compositions
       var precompsFolderName = "Precomps"; // Name of the folder for new precompositions
@@ -1178,12 +1228,7 @@ function compsFromSheet() {
       // Create a folder for imported files within the output folder
       var importFolder = outputFolder.items.addFolder(importFolderName);
 
-      // Show dialog to decide whether to add to render queue
-      var renderOptions = showRenderQueueDialog();
-
-      if (!renderOptions.addToRenderQueue) {
-        return; // Exit if user did not choose to add to render queue
-      }
+      var compsToRename = [];
 
       for (var i = 0; i < data.length; i++) {
         var compName = data[i]["Composition Name"];
@@ -1207,24 +1252,48 @@ function compsFromSheet() {
               precompsFolder,
               importFolder
             );
-            if (renderOptions.outputModule) {
-              var renderQueueItem = addToRenderQueueAndVerify(
-                newComp,
-                renderOptions.outputModule,
-                renderOptions.outputFolder
-              );
-              if (renderQueueItem.status == 3013) {
-                alert(
-                  "Render queue item status is 3013. Please check the output module and destination folder settings."
-                );
-              }
-            } else {
-              messages.push("No output module selected for: " + newComp.name);
-            }
+            compsToRename.push(newComp);
           } else {
             var message = "Composition not found: " + compName;
             alert(message);
             messages.push(message);
+          }
+        }
+      }
+
+      var renamedComps = showRenameCompsDialog(compsToRename);
+      if (renamedComps) {
+        for (var i = 0; i < renamedComps.length; i++) {
+          var compInfo = renamedComps[i];
+          var comp = findProjectItemByName(compInfo.oldName);
+          if (comp) {
+            comp.name = compInfo.newName;
+          }
+        }
+      }
+
+      // Show dialog to decide whether to add to render queue
+      var renderOptions = showRenderQueueDialog();
+
+      if (!renderOptions.addToRenderQueue) {
+        return; // Exit if user did not choose to add to render queue
+      }
+
+      if (renamedComps) {
+        for (var i = 0; i < renamedComps.length; i++) {
+          var compInfo = renamedComps[i];
+          var comp = findProjectItemByName(compInfo.newName);
+          if (comp && renderOptions.outputModule) {
+            var renderQueueItem = addToRenderQueueAndVerify(
+              comp,
+              renderOptions.outputModule,
+              renderOptions.outputFolder
+            );
+            if (renderQueueItem.status == 3013) {
+              alert(
+                "Render queue item status is 3013. Please check the output module and destination folder settings."
+              );
+            }
           }
         }
       }
