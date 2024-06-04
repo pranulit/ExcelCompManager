@@ -261,8 +261,9 @@
     precompsFolder,
     importFolder
   ) {
+    var uniqueID = new Date().getTime(); // Generate a unique ID based on the current timestamp
     var newComp = mainComp.duplicate();
-    newComp.name = rowData["Composition Name"];
+    newComp.name = rowData["Composition Name"] + "_" + uniqueID; // Append unique ID to the composition name
 
     var importedFiles = {};
 
@@ -304,7 +305,9 @@
 
     // Use appropriate path separator
     var pathSeparator = Folder.fs == "Macintosh" ? "/" : "\\";
-    var outputFilePath = outputFolder + pathSeparator + comp.name + ".mp4";
+    var uniqueID = new Date().getTime(); // Generate a unique ID based on the current timestamp
+    var outputFilePath =
+      outputFolder + pathSeparator + comp.name + "_" + uniqueID + ".mp4"; // Append unique ID to file name
 
     renderQueueItem.outputModule(1).file = new File(outputFilePath);
 
@@ -389,6 +392,10 @@
     // Show dialog to decide whether to add to render queue
     var renderOptions = showRenderQueueDialog();
 
+    if (!renderOptions.addToRenderQueue) {
+      return; // Exit if user did not choose to add to render queue
+    }
+
     for (var i = 0; i < data.length; i++) {
       var compName = data[i]["Composition Name"];
       if (compName) {
@@ -411,7 +418,7 @@
             precompsFolder,
             importFolder
           );
-          if (renderOptions.addToRenderQueue && renderOptions.outputModule) {
+          if (renderOptions.outputModule) {
             var renderQueueItem = addToRenderQueueAndVerify(
               newComp,
               renderOptions.outputModule,
@@ -434,9 +441,7 @@
     }
 
     // Start rendering process with feedback
-    if (renderOptions.addToRenderQueue) {
-      renderAndProvideFeedback();
-    }
+    renderAndProvideFeedback();
   }
 
   main();
