@@ -253,23 +253,33 @@
     }
   }
 
-  // Function to create a comp from data
   function createCompFromData(
     rowData,
     mainComp,
     outputFolder,
     precompsFolder,
-    importFolder
+    importFolder,
+    existingCompNames
   ) {
-    var uniqueID = new Date().getTime(); // Generate a unique ID based on the current timestamp
+    var baseName = rowData["Composition Name"] + "_NEW_v";
+    var newName = baseName + "001";
+    var count = 1;
+
+    while (existingCompNames.indexOf(newName) !== -1) {
+      count++;
+      newName = baseName + ("000" + count).slice(-3);
+    }
+
+    existingCompNames.push(newName);
+
     var newComp = mainComp.duplicate();
-    newComp.name = rowData["Composition Name"] + "_" + uniqueID; // Append unique ID to the composition name
+    newComp.name = newName;
 
     var importedFiles = {};
 
     // Import files and store them in the dictionary
     for (var key in rowData) {
-      if (key.indexOf("$") === 0) {
+      if (rowData.hasOwnProperty(key) && key.indexOf("$") === 0) {
         var filePath = rowData[key];
         if (filePath) {
           var importedFile = importFile(filePath, importFolder);
@@ -419,6 +429,7 @@
 
     var data = parseDocument(filePath);
     var messages = [];
+    var existingCompNames = [];
 
     // Ensure the project has items
     if (app.project.items.length === 0) {
@@ -459,7 +470,8 @@
             mainComp,
             outputFolder,
             precompsFolder,
-            importFolder
+            importFolder,
+            existingCompNames
           );
           compsToRename.push(newComp);
         } else {

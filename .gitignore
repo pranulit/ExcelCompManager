@@ -1,6 +1,6 @@
 # ignore all files in any directory named build
 project-files/
 
-excel/
+spreadsheets/
 
 .DS_Store

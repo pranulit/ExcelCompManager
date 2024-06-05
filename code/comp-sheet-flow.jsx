@@ -101,6 +101,126 @@ applySyntax(true, true);
 
 // Function definitions
 function compsFromName() {
+  // Define the createCompositions function to be exported
+  function createCompositions(compsInput, filesInput, fps) {
+    var lines = compsInput.split("\n");
+
+    for (var i = 0; i < lines.length; i++) {
+      lines[i] = lines[i].replace(/^\s+|\s+$/g, "");
+    }
+
+    // Manual filtering of empty lines
+    var filteredLines = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i] !== "") {
+        filteredLines.push(lines[i]);
+      }
+    }
+    lines = filteredLines;
+
+    var files = filesInput.split("\n");
+
+    for (var i = 0; i < files.length; i++) {
+      files[i] = files[i].replace(/^\s+|\s+$/g, "");
+    }
+
+    // Manual filtering of empty file paths
+    var filteredFiles = [];
+    for (var i = 0; i < files.length; i++) {
+      if (files[i] !== "") {
+        filteredFiles.push(files[i]);
+      }
+    }
+    files = filteredFiles;
+
+    if (lines.length === 0) {
+      return;
+    }
+
+    try {
+      var mainFolder = app.project.items.addFolder("01_main");
+      var importedFolder = app.project.items.addFolder("02_imported files");
+    } catch (folderError) {
+      alert("Error creating folders: " + folderError.message);
+      return;
+    }
+
+    var compSettings = {
+      "16x9": { width: 1920, height: 1080 },
+      "1x1": { width: 1080, height: 1080 },
+      "4x5": { width: 1080, height: 1350 },
+      "9x16": { width: 1080, height: 1920 },
+    };
+    var defaultFormat = "16x9";
+
+    app.beginUndoGroup("Create Compositions");
+
+    try {
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        var parts = line.split("_");
+
+        var duration = parts[2] ? parts[2].match(/(\d+)s/) : null;
+        var formatMatch = parts[2] ? parts[2].match(/(\d+x\d+)/) : null;
+        var format = formatMatch ? formatMatch[1] : defaultFormat;
+
+        if (!duration) {
+          duration = ["", "30"];
+        }
+        if (!compSettings[format]) {
+          format = defaultFormat;
+        }
+
+        var comp = app.project.items.addComp(
+          parts[0],
+          compSettings[format].width,
+          compSettings[format].height,
+          1,
+          parseFloat(duration[1]),
+          fps
+        );
+        comp.parentFolder = mainFolder;
+        comp.name = line;
+
+        var solid = comp.layers.addSolid(
+          [1, 1, 1],
+          "$offline",
+          comp.width,
+          comp.height,
+          1
+        );
+        solid.name = "$offline";
+
+        if (files[i]) {
+          var filePath = files[i];
+          if (filePath !== "") {
+            try {
+              var importOptions = new ImportOptions(File(filePath));
+              if (importOptions.canImportAs(ImportAsType.FOOTAGE)) {
+                var footage = app.project.importFile(importOptions);
+                footage.parentFolder = importedFolder;
+                var newLayer = comp.layers.add(footage);
+                newLayer.moveBefore(solid);
+                solid.remove();
+              } else {
+                alert(
+                  "File at " + filePath + " cannot be imported as footage."
+                );
+              }
+            } catch (error) {
+              alert("Error importing file: " + filePath + "\n" + error.message);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      alert("Error in createCompositions: " + e.toString());
+    }
+
+    app.endUndoGroup();
+  }
+
+  // Create and display the UI panel only if this script is executed directly
   (function () {
     var myPanel =
       this instanceof Panel
@@ -177,127 +297,6 @@ function compsFromName() {
           parseFloat(fpsDropdown.selection.text)
         );
       };
-    }
-
-    function createCompositions(compsInput, filesInput, fps) {
-      var lines = compsInput.split("\n");
-
-      for (var i = 0; i < lines.length; i++) {
-        lines[i] = lines[i].replace(/^\s+|\s+$/g, "");
-      }
-
-      // Manual filtering of empty lines
-      var filteredLines = [];
-      for (var i = 0; i < lines.length; i++) {
-        if (lines[i] !== "") {
-          filteredLines.push(lines[i]);
-        }
-      }
-      lines = filteredLines;
-
-      var files = filesInput.split("\n");
-
-      for (var i = 0; i < files.length; i++) {
-        files[i] = files[i].replace(/^\s+|\s+$/g, "");
-      }
-
-      // Manual filtering of empty file paths
-      var filteredFiles = [];
-      for (var i = 0; i < files.length; i++) {
-        if (files[i] !== "") {
-          filteredFiles.push(files[i]);
-        }
-      }
-      files = filteredFiles;
-
-      if (lines.length === 0) {
-        return;
-      }
-
-      try {
-        var mainFolder = app.project.items.addFolder("01_main");
-
-        var importedFolder = app.project.items.addFolder("02_imported files");
-      } catch (folderError) {
-        alert("Error creating folders: " + folderError.message);
-        return;
-      }
-
-      var compSettings = {
-        "16x9": { width: 1920, height: 1080 },
-        "1x1": { width: 1080, height: 1080 },
-        "4x5": { width: 1080, height: 1350 },
-        "9x16": { width: 1080, height: 1920 },
-      };
-      var defaultFormat = "16x9";
-
-      app.beginUndoGroup("Create Compositions");
-
-      try {
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i];
-          var parts = line.split("_");
-
-          var duration = parts[2] ? parts[2].match(/(\d+)s/) : null;
-          var formatMatch = parts[2] ? parts[2].match(/(\d+x\d+)/) : null;
-          var format = formatMatch ? formatMatch[1] : defaultFormat;
-
-          if (!duration) {
-            duration = ["", "30"];
-          }
-          if (!compSettings[format]) {
-            format = defaultFormat;
-          }
-
-          var comp = app.project.items.addComp(
-            parts[0],
-            compSettings[format].width,
-            compSettings[format].height,
-            1,
-            parseFloat(duration[1]),
-            fps
-          );
-          comp.parentFolder = mainFolder;
-          comp.name = line;
-
-          var solid = comp.layers.addSolid(
-            [1, 1, 1],
-            "$offline",
-            comp.width,
-            comp.height,
-            1
-          );
-          solid.name = "$offline";
-
-          if (files[i]) {
-            var filePath = files[i];
-            if (filePath !== "") {
-              try {
-                var importOptions = new ImportOptions(File(filePath));
-                if (importOptions.canImportAs(ImportAsType.FOOTAGE)) {
-                  var footage = app.project.importFile(importOptions);
-                  footage.parentFolder = importedFolder;
-                  var newLayer = comp.layers.add(footage);
-                  newLayer.moveBefore(solid);
-                  solid.remove();
-                } else {
-                  alert(
-                    "File at " + filePath + " cannot be imported as footage."
-                  );
-                }
-              } catch (error) {
-                alert(
-                  "Error importing file: " + filePath + "\n" + error.message
-                );
-              }
-            }
-          }
-        }
-      } catch (e) {
-        alert("Error in createCompositions: " + e.toString());
-      }
-
-      app.endUndoGroup();
     }
 
     if (myPanel instanceof Window) {
@@ -919,23 +918,33 @@ function compsFromSheet() {
       }
     }
 
-    // Function to create a comp from data
     function createCompFromData(
       rowData,
       mainComp,
       outputFolder,
       precompsFolder,
-      importFolder
+      importFolder,
+      existingCompNames
     ) {
-      var uniqueID = new Date().getTime(); // Generate a unique ID based on the current timestamp
+      var baseName = rowData["Composition Name"] + "_NEW_v";
+      var newName = baseName + "001";
+      var count = 1;
+
+      while (existingCompNames.indexOf(newName) !== -1) {
+        count++;
+        newName = baseName + ("000" + count).slice(-3);
+      }
+
+      existingCompNames.push(newName);
+
       var newComp = mainComp.duplicate();
-      newComp.name = rowData["Composition Name"] + "_" + uniqueID; // Append unique ID to the composition name
+      newComp.name = newName;
 
       var importedFiles = {};
 
       // Import files and store them in the dictionary
       for (var key in rowData) {
-        if (key.indexOf("$") === 0) {
+        if (rowData.hasOwnProperty(key) && key.indexOf("$") === 0) {
           var filePath = rowData[key];
           if (filePath) {
             var importedFile = importFile(filePath, importFolder);
@@ -1093,6 +1102,7 @@ function compsFromSheet() {
 
       var data = parseDocument(filePath);
       var messages = [];
+      var existingCompNames = [];
 
       // Ensure the project has items
       if (app.project.items.length === 0) {
@@ -1133,7 +1143,8 @@ function compsFromSheet() {
               mainComp,
               outputFolder,
               precompsFolder,
-              importFolder
+              importFolder,
+              existingCompNames
             );
             compsToRename.push(newComp);
           } else {
@@ -1187,6 +1198,8 @@ function compsFromSheet() {
 
     main();
   }
+
+  //it should ignore gaps in the input box
 }
 
 var myToolsPanel = createUI(this);
