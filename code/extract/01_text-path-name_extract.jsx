@@ -50,9 +50,9 @@ function createUI() {
   var saveCSVButton = buttons.add("button", undefined, "Save as CSV", {
     name: "csv",
   });
-  var saveTXTButton = buttons.add("button", undefined, "Save as TXT", {
-    name: "txt",
-  });
+  // var saveTXTButton = buttons.add("button", undefined, "Save as TXT", {
+  //   name: "txt",
+  // });
 
   // Define the cancel button behavior
   cancelButton.onClick = function () {
@@ -65,11 +65,11 @@ function createUI() {
     dlg.close();
   };
 
-  // Define the save button behavior for TXT
-  saveTXTButton.onClick = function () {
-    saveCompositions(listBox, "TXT");
-    dlg.close();
-  };
+  // // Define the save button behavior for TXT
+  // saveTXTButton.onClick = function () {
+  //   saveCompositions(listBox, "TXT");
+  //   dlg.close();
+  // };
 
   // Lay out the dialog elements, center it, and display it
   dlg.layout.layout(true);
@@ -311,9 +311,15 @@ function generateAndSaveCSV(
 }
 
 function saveDelimitedFile(content, delimiter) {
-  var fileExtension = delimiter === "," ? "*.csv" : "*.txt";
-  var file = new File(File.saveDialog("Save your file", fileExtension));
+  var fileExtension = delimiter === "," ? "csv" : "txt";
+  var file = new File(File.saveDialog("Save your file", "*." + fileExtension));
+
   if (file) {
+    // Ensure the file has the correct extension
+    if (file.name.split(".").pop().toLowerCase() !== fileExtension) {
+      file = new File(file.absoluteURI + "." + fileExtension);
+    }
+
     file.encoding = "UTF-8";
     file.open("w");
     if (file.write(content)) {

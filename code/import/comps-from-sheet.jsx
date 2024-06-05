@@ -1,7 +1,7 @@
 {
   function chooseFilePath() {
     var file = File.openDialog(
-      "Select a CSV, TSV, or delimited TXT file",
+      "Select a CSV",
       "Delimited Text files:*.csv;*.tsv;*.txt",
       false
     );
@@ -513,3 +513,5 @@
 
   main();
 }
+
+//it should ignore gaps in the input box
