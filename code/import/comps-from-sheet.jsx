@@ -185,73 +185,97 @@
   }
 
   // Function to update layers in a composition recursively
-  function updateLayers(
-    comp,
-    rowData,
-    precompsFolder,
-    importFolder,
-    importedFiles
-  ) {
-    if (!importedFiles) {
-      alert("importedFiles is undefined!");
-      return;
+function updateLayers(
+  comp,
+  rowData,
+  precompsFolder,
+  importFolder,
+  importedFiles
+) {
+  if (!importedFiles) {
+    alert("importedFiles is undefined!");
+    return;
+  }
+
+  for (var i = 1; i <= comp.layers.length; i++) {
+    var layer = comp.layer(i);
+    var layerName = layer.name;
+
+    // Update text layers if the layer name matches any of the headers
+    if (rowData[layerName]) {
+      var textValue = rowData[layerName];
+      if (textValue && layer.property("Source Text") != null) {
+        layer.property("Source Text").setValue(textValue);
+      }
     }
 
-    for (var i = 1; i <= comp.layers.length; i++) {
-      var layer = comp.layer(i);
-      var layerName = layer.name;
+    // Replace layers with corresponding imported files if the layer name starts with "$"
+    if (layerName.indexOf("$") === 0) {
+      var columnName = layerName.substring(1); // Remove the "$" symbol
+      var importedFile = importedFiles[columnName];
 
-      // Update text layers if the layer name matches any of the headers
-      if (rowData[layerName]) {
-        var textValue = rowData[layerName];
-        if (textValue && layer.property("Source Text") != null) {
-          layer.property("Source Text").setValue(textValue);
-        }
+      if (importedFile) {
+        var originalStartTime = layer.startTime; // Store the original start time
+        var originalInPoint = layer.inPoint; // Store the original in point
+        var originalOutPoint = layer.outPoint; // Store the original out point
+        var originalDuration = layer.outPoint - layer.inPoint; // Store the original duration
+        var originalStretch = layer.stretch; // Store the original stretch
+        var originalEnabled = layer.enabled; // Store the original enabled state
+
+        layer.replaceSource(importedFile, false);
+
+        layer.startTime = originalStartTime; // Restore the original start time
+        layer.inPoint = originalInPoint; // Restore the original in point
+        layer.outPoint = originalOutPoint; // Restore the original out point
+        layer.stretch = originalStretch; // Restore the original stretch
+        layer.enabled = originalEnabled; // Restore the original enabled state
       }
+    }
 
-      // Replace layers with corresponding imported files if the layer name starts with "$"
-      if (layerName.indexOf("$") === 0) {
-        var columnName = layerName.substring(1); // Remove the "$" symbol
-        var importedFile = importedFiles[columnName];
+    // Replace layers with corresponding project items if the layer name starts with "#"
+    if (layerName.indexOf("#") === 0) {
+      var columnName = layerName.substring(1); // Remove the "#" symbol
+      var projectItemName = rowData["#" + columnName]; // Get project item name from the TSV column
+      var projectItem = findProjectItemByName(projectItemName);
+      if (projectItem) {
+        var originalStartTime = layer.startTime; // Store the original start time
+        var originalInPoint = layer.inPoint; // Store the original in point
+        var originalOutPoint = layer.outPoint; // Store the original out point
+        var originalDuration = layer.outPoint - layer.inPoint; // Store the original duration
+        var originalStretch = layer.stretch; // Store the original stretch
+        var originalEnabled = layer.enabled; // Store the original enabled state
 
-        if (importedFile) {
-          layer.replaceSource(importedFile, false);
-          layer.enabled = true; // Ensure the layer is visible
-        }
+        layer.replaceSource(projectItem, false);
+
+        layer.startTime = originalStartTime; // Restore the original start time
+        layer.inPoint = originalInPoint; // Restore the original in point
+        layer.outPoint = originalOutPoint; // Restore the original out point
+        layer.stretch = originalStretch; // Restore the original stretch
+        layer.enabled = originalEnabled; // Restore the original enabled state
       }
+    }
 
-      // Replace layers with corresponding project items if the layer name starts with "#"
-      if (layerName.indexOf("#") === 0) {
-        var columnName = layerName.substring(1); // Remove the "#" symbol
-        var projectItemName = rowData["#" + columnName]; // Get project item name from the TSV column
-        var projectItem = findProjectItemByName(projectItemName);
-        if (projectItem) {
-          layer.replaceSource(projectItem, false);
-          layer.enabled = true; // Ensure the layer is visible
-        }
-      }
+    // Recursively update and duplicate text layers in precompositions
+    if (layer.source instanceof CompItem) {
+      var preCompDuplicate = layer.source.duplicate();
+      preCompDuplicate.name = comp.name + " - " + layerName;
+      preCompDuplicate.parentFolder = precompsFolder;
 
-      // Recursively update and duplicate text layers in precompositions
-      if (layer.source instanceof CompItem) {
-        var preCompDuplicate = layer.source.duplicate();
-        preCompDuplicate.name = comp.name + " - " + layerName;
-        preCompDuplicate.parentFolder = precompsFolder;
+      // Update layers in the duplicated precomp
+      updateLayers(
+        preCompDuplicate,
+        rowData,
+        precompsFolder,
+        importFolder,
+        importedFiles
+      );
 
-        // Update layers in the duplicated precomp
-        updateLayers(
-          preCompDuplicate,
-          rowData,
-          precompsFolder,
-          importFolder,
-          importedFiles
-        );
-
-        // Update the layer to use the new precomp
-        layer.replaceSource(preCompDuplicate, false);
-        layer.enabled = true; // Ensure the layer is visible
-      }
+      // Update the layer to use the new precomp
+      layer.replaceSource(preCompDuplicate, false);
+      layer.enabled = true; // Ensure the layer is visible
     }
   }
+}
 
   function createCompFromData(
     rowData,
@@ -265,10 +289,10 @@
     var newName = baseName + "001";
     var count = 1;
 
-    while (existingCompNames.indexOf(newName) !== -1) {
-      count++;
-      newName = baseName + ("000" + count).slice(-3);
-    }
+  while (arrayContains(existingCompNames, newName)) {
+    count++;
+    newName = baseName + ("000" + count).slice(-3);
+  }
 
     existingCompNames.push(newName);
 
@@ -298,6 +322,16 @@
 
     return newComp;
   }
+
+
+  function arrayContains(array, value) {
+  for (var i = 0; i < array.length; i++) {
+    if (array[i] === value) {
+      return true;
+    }
+  }
+  return false;
+}
 
   function addToRenderQueueAndVerify(comp, outputModule, outputFolder) {
     // Ensure the output folder exists
@@ -525,5 +559,3 @@
 
   main();
 }
-
-//it should ignore gaps in the input box
