@@ -33,7 +33,8 @@ function createUI(thisObj) {
 }
 
 function openApplyRemoveSyntaxWindow() {
-  var dialog = new Window("dialog", "Apply / Remove Syntax");
+  // Change the dialog type to "palette" for a modeless window
+  var dialog = new Window("palette", "Apply / Remove Syntax");
   dialog.orientation = "column";
 
   // Search bar for filtering compositions
@@ -83,11 +84,7 @@ function openApplyRemoveSyntaxWindow() {
   optionsGroup.orientation = "row";
   var textCheckbox = optionsGroup.add("checkbox", undefined, "@");
   var pathCheckbox = optionsGroup.add("checkbox", undefined, "$");
-  var projectItemCheckbox = optionsGroup.add(
-    "checkbox",
-    undefined,
-    "# (precomps by default)"
-  );
+  var projectItemCheckbox = optionsGroup.add("checkbox", undefined, "#");
 
   // Buttons for applying or removing syntax
   var buttonGroup = dialog.add("group");
@@ -103,7 +100,6 @@ function openApplyRemoveSyntaxWindow() {
       pathCheckbox.value,
       projectItemCheckbox.value
     );
-    // Refresh the UI or give feedback without closing the dialog
   };
 
   removeButton.onClick = function () {
@@ -114,10 +110,9 @@ function openApplyRemoveSyntaxWindow() {
       pathCheckbox.value,
       projectItemCheckbox.value
     );
-    // Refresh the UI or give feedback without closing the dialog
   };
 
-  dialog.show();
+  dialog.show(); // This now works in a non-blocking mode since it's a palette
 }
 
 function processComps(
@@ -132,49 +127,59 @@ function processComps(
   // Begin the undo group
   app.beginUndoGroup(apply ? "Apply Syntax" : "Remove Syntax");
 
+  function processLayer(layer) {
+    // Apply or remove text syntax
+    if (applyToText && layer instanceof TextLayer) {
+      if (apply) {
+        if (layer.name.indexOf("@") !== 0) {
+          layer.name = "@" + layer.name;
+        }
+      } else {
+        if (layer.name.indexOf("@") === 0) {
+          layer.name = layer.name.substring(1);
+        }
+      }
+    }
+
+    // Apply or remove path syntax
+    if (applyToPath && layer.source instanceof FootageItem) {
+      if (apply) {
+        if (layer.name.indexOf("$") !== 0) {
+          layer.name = "$" + layer.name;
+        }
+      } else {
+        if (layer.name.indexOf("$") === 0) {
+          layer.name = layer.name.substring(1);
+        }
+      }
+    }
+
+    // Apply or remove precomp syntax
+    if (applyToPrecomp && layer.source instanceof CompItem) {
+      if (apply) {
+        if (layer.name.indexOf("#") !== 0) {
+          layer.name = "#" + layer.name;
+        }
+      } else {
+        if (layer.name.indexOf("#") === 0) {
+          layer.name = layer.name.substring(1);
+        }
+      }
+    }
+  }
+
   function processComp(comp) {
     for (var j = 1; j <= comp.numLayers; j++) {
       var layer = comp.layer(j);
 
-      // Apply or remove text syntax
-      if (applyToText && layer instanceof TextLayer) {
-        if (apply) {
-          if (layer.name.indexOf("@") !== 0) {
-            layer.name = "@" + layer.name;
-          }
-        } else {
-          if (layer.name.indexOf("@") === 0) {
-            layer.name = layer.name.substring(1);
-          }
-        }
-      }
+      processLayer(layer); // Process the current layer
 
-      // Apply or remove path syntax
-      if (applyToPath && layer.source instanceof FootageItem) {
-        if (apply) {
-          if (layer.name.indexOf("$") !== 0) {
-            layer.name = "$" + layer.name;
-          }
-        } else {
-          if (layer.name.indexOf("$") === 0) {
-            layer.name = layer.name.substring(1);
-          }
-        }
-      }
-
-      // Apply or remove precomp syntax and recurse
-      if (applyToPrecomp && layer.source instanceof CompItem) {
-        if (apply) {
-          if (layer.name.indexOf("#") !== 0) {
-            layer.name = "#" + layer.name;
-          }
-        } else {
-          if (layer.name.indexOf("#") === 0) {
-            layer.name = layer.name.substring(1);
-          }
-        }
-        // Recursively process precompositions
-        processComp(layer.source);
+      // Recursively process layers inside precomps if any checkbox is selected
+      if (
+        layer.source instanceof CompItem &&
+        (applyToText || applyToPath || applyToPrecomp)
+      ) {
+        processComp(layer.source); // Recursion to handle all nested precomps
       }
     }
   }
