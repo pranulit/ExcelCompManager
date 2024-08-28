@@ -1,4 +1,6 @@
 {
+  // Function to display a file dialog and allow the user to select a CSV file.
+  // Returns the full path of the selected file, or null if no file is selected.
   function chooseFilePath() {
     var file = File.openDialog(
       "Select a CSV",
@@ -13,6 +15,14 @@
     }
   }
 
+  // Main function or appropriate place in the script to set the file path
+  var filePath = chooseFilePath(); // Get the file path using the dialog box
+  if (!filePath) {
+    throw new Error("Script terminated: No file selected.");
+  }
+
+  // Function to determine the delimiter used in the selected file based on its extension.
+  // Returns ";" for CSV files on Windows, "," on other OS, and "\t" for TSV and TXT files.
   function getDelimiter(filePath) {
     var parts = filePath.split(".");
     var extension = parts[parts.length - 1].toLowerCase();
@@ -36,7 +46,8 @@
     }
   }
 
-  // Function to display UI for render settings and adding to render queue
+  // Function to display a dialog for selecting render settings and adding to the render queue.
+  // Returns an object with the user's choices: whether to add to the render queue, the output module, and the output folder.
   function showRenderQueueDialog() {
     var dialog = new Window("dialog", "Render Queue Options");
 
@@ -108,13 +119,8 @@
     return result;
   }
 
-  // Main function or appropriate place in the script to set the file path
-  var filePath = chooseFilePath(); // Get the file path using the dialog box
-  if (!filePath) {
-    throw new Error("Script terminated: No file selected.");
-  }
-
-  // Function to read and parse the delimited text file
+  // Function to read and parse a delimited text file (CSV, TSV, etc.).
+  // Returns an array of objects, each representing a row in the file.
   function parseDocument(filePath) {
     var file = new File(filePath);
     var delimiter = getDelimiter(filePath);
@@ -137,7 +143,8 @@
     return data;
   }
 
-  // Function to correctly parse a CSV line, considering quoted fields
+  // Function to correctly parse a line of a CSV file, considering quoted fields.
+  // Returns an array of field values.
   function parseLine(line, delimiter) {
     var result = [];
     var insideQuote = false;
@@ -157,7 +164,8 @@
     return result;
   }
 
-  // Function to import a file and place it in the specified folder
+  // Function to import a file (e.g., an image or video) into the project and place it in the specified folder.
+  // Returns the imported file or null if the file doesn't exist.
   function importFile(filePath, importFolder) {
     var file = new File(filePath);
     if (file.exists) {
@@ -174,7 +182,8 @@
     }
   }
 
-  // Function to find a project item by name
+  // Function to find a project item (e.g., composition, footage) by its name.
+  // Returns the found project item or null if not found.
   function findProjectItemByName(name) {
     for (var i = 1; i <= app.project.numItems; i++) {
       if (app.project.item(i).name === name) {
@@ -184,115 +193,283 @@
     return null;
   }
 
-  // Function to update layers in a composition recursively
-function updateLayers(
-  comp,
-  rowData,
-  precompsFolder,
-  importFolder,
-  importedFiles
-) {
-  if (!importedFiles) {
-    alert("importedFiles is undefined!");
-    return;
-  }
+  // Function to show a dialog where the user can enter a suffix for precompositions.
+  // Returns the entered suffix or an empty string if the dialog is canceled.
+  function getPrecompSuffix() {
+    var dialog = new Window("dialog", "Enter Suffix for Precomps");
+    dialog.add(
+      "statictext",
+      undefined,
+      "Enter the suffix to append to precomp names:"
+    );
+    var input = dialog.add("edittext", undefined, "");
+    input.characters = 20;
 
-  for (var i = 1; i <= comp.layers.length; i++) {
-    var layer = comp.layer(i);
-    var layerName = layer.name;
+    var buttonGroup = dialog.add("group");
+    buttonGroup.orientation = "row";
+    var okButton = buttonGroup.add("button", undefined, "OK");
+    var cancelButton = buttonGroup.add("button", undefined, "Cancel");
 
-    // Update text layers if the layer name matches any of the headers
-    if (rowData[layerName]) {
-      var textValue = rowData[layerName];
-      if (textValue && layer.property("Source Text") != null) {
-        layer.property("Source Text").setValue(textValue);
-      }
-    }
+    okButton.onClick = function () {
+      dialog.close(1);
+    };
 
-    // Replace layers with corresponding imported files if the layer name starts with "$"
-    if (layerName.indexOf("$") === 0) {
-      var columnName = layerName.substring(1); // Remove the "$" symbol
-      var importedFile = importedFiles[columnName];
+    cancelButton.onClick = function () {
+      dialog.close(0);
+    };
 
-      if (importedFile) {
-        var originalStartTime = layer.startTime; // Store the original start time
-        var originalInPoint = layer.inPoint; // Store the original in point
-        var originalOutPoint = layer.outPoint; // Store the original out point
-        var originalDuration = layer.outPoint - layer.inPoint; // Store the original duration
-        var originalStretch = layer.stretch; // Store the original stretch
-        var originalEnabled = layer.enabled; // Store the original enabled state
-
-        layer.replaceSource(importedFile, false);
-
-        layer.startTime = originalStartTime; // Restore the original start time
-        layer.inPoint = originalInPoint; // Restore the original in point
-        layer.outPoint = originalOutPoint; // Restore the original out point
-        layer.stretch = originalStretch; // Restore the original stretch
-        layer.enabled = originalEnabled; // Restore the original enabled state
-      }
-    }
-
-    // Replace layers with corresponding project items if the layer name starts with "#"
-    if (layerName.indexOf("#") === 0) {
-      var columnName = layerName.substring(1); // Remove the "#" symbol
-      var projectItemName = rowData["#" + columnName]; // Get project item name from the TSV column
-      var projectItem = findProjectItemByName(projectItemName);
-      if (projectItem) {
-        var originalStartTime = layer.startTime; // Store the original start time
-        var originalInPoint = layer.inPoint; // Store the original in point
-        var originalOutPoint = layer.outPoint; // Store the original out point
-        var originalDuration = layer.outPoint - layer.inPoint; // Store the original duration
-        var originalStretch = layer.stretch; // Store the original stretch
-        var originalEnabled = layer.enabled; // Store the original enabled state
-
-        layer.replaceSource(projectItem, false);
-
-        layer.startTime = originalStartTime; // Restore the original start time
-        layer.inPoint = originalInPoint; // Restore the original in point
-        layer.outPoint = originalOutPoint; // Restore the original out point
-        layer.stretch = originalStretch; // Restore the original stretch
-        layer.enabled = originalEnabled; // Restore the original enabled state
-      }
-    }
-
-    // Recursively update and duplicate text layers in precompositions
-    if (layer.source instanceof CompItem) {
-      var preCompDuplicate = layer.source.duplicate();
-      preCompDuplicate.name = comp.name + " - " + layerName;
-      preCompDuplicate.parentFolder = precompsFolder;
-
-      // Update layers in the duplicated precomp
-      updateLayers(
-        preCompDuplicate,
-        rowData,
-        precompsFolder,
-        importFolder,
-        importedFiles
-      );
-
-      // Update the layer to use the new precomp
-      layer.replaceSource(preCompDuplicate, false);
-      layer.enabled = true; // Ensure the layer is visible
+    if (dialog.show() === 1) {
+      // Ensure that suffix is trimmed and check if it is empty
+      var suffix = input.text.replace(/^\s+|\s+$/g, "");
+      return suffix || ""; // If the suffix is empty, return an empty string
+    } else {
+      return ""; // If dialog was cancelled, return an empty string
     }
   }
-}
 
+  function containsLayerWithSymbols(comp, symbols) {
+    for (var i = 1; i <= comp.layers.length; i++) {
+      var layer = comp.layer(i);
+      for (var j = 0; j < symbols.length; j++) {
+        if (layer.name.indexOf(symbols[j]) !== -1) {
+          return true; // Found a layer with one of the symbols
+        }
+      }
+    }
+    return false; // No layers with the symbols found
+  }
+
+  function updateLayers(
+    comp,
+    rowData,
+    precompsFolder,
+    importFolder,
+    importedFiles,
+    precompMap,
+    suffix
+  ) {
+    if (!importedFiles) {
+      alert("importedFiles is undefined!");
+      return;
+    }
+
+    var symbols = ["@", "$", "#"];
+
+    // Check if the composition has already been processed
+    if (precompMap[comp.name]) {
+      return;
+    }
+
+    for (var i = 1; i <= comp.layers.length; i++) {
+      var layer = comp.layer(i);
+      var layerName = layer.name;
+
+      // Update text layers if the layer name matches any of the headers
+      if (rowData[layerName]) {
+        var textValue = rowData[layerName];
+        if (textValue && layer.property("Source Text") != null) {
+          layer.property("Source Text").setValue(textValue);
+        }
+      }
+
+      // Replace layers with corresponding imported files if the layer name starts with "$"
+      if (layerName.indexOf("$") === 0) {
+        var columnName = layerName.substring(1);
+        var importedFile = importedFiles[columnName];
+
+        if (importedFile) {
+          var originalStartTime = layer.startTime;
+          var originalInPoint = layer.inPoint;
+          var originalOutPoint = layer.outPoint;
+          var originalDuration = layer.outPoint - layer.inPoint;
+          var originalStretch = layer.stretch;
+          var originalEnabled = layer.enabled;
+
+          layer.replaceSource(importedFile, false);
+
+          layer.startTime = originalStartTime;
+          layer.inPoint = originalInPoint;
+          layer.outPoint = originalOutPoint;
+          layer.stretch = originalStretch;
+          layer.enabled = originalEnabled;
+        }
+      }
+
+      // Replace layers with corresponding project items if the layer name starts with "#"
+      if (layerName.indexOf("#") === 0) {
+        var columnName = layerName.substring(1);
+        var projectItemName = rowData["#" + columnName];
+        var projectItem = findProjectItemByName(projectItemName);
+        if (projectItem) {
+          var originalStartTime = layer.startTime;
+          var originalInPoint = layer.inPoint;
+          var originalOutPoint = layer.outPoint;
+          var originalDuration = layer.outPoint - layer.inPoint;
+          var originalStretch = layer.stretch;
+          var originalEnabled = layer.enabled;
+
+          layer.replaceSource(projectItem, false);
+
+          layer.startTime = originalStartTime;
+          layer.inPoint = originalInPoint;
+          layer.outPoint = originalOutPoint;
+          layer.stretch = originalStretch;
+          layer.enabled = originalEnabled;
+        }
+      }
+
+      // Recursively update and duplicate text layers in precompositions only if they have symbols
+      if (layer.source instanceof CompItem) {
+        var preComp = layer.source;
+
+        if (containsLayerWithSymbols(preComp, symbols)) {
+          if (!precompMap[preComp.name]) {
+            var preCompDuplicate = preComp.duplicate();
+            preCompDuplicate.name = preComp.name + suffix;
+            preCompDuplicate.parentFolder = precompsFolder;
+
+            // Mark the original precomp as processed to avoid duplication
+            precompMap[preComp.name] = preCompDuplicate;
+
+            // Update layers in the duplicated precomp
+            updateLayers(
+              preCompDuplicate,
+              rowData,
+              precompsFolder,
+              importFolder,
+              importedFiles,
+              precompMap,
+              suffix
+            );
+          }
+
+          // Replace the layer with the duplicated precomp
+          layer.replaceSource(precompMap[preComp.name], false);
+          layer.enabled = true;
+        }
+      }
+    }
+
+    // Mark the top-level composition as processed to avoid reprocessing
+    precompMap[comp.name] = comp;
+  }
+
+  // Function to update layers in a composition with CSV data and manage precompositions
+  function updateLayersWithCSVData(
+    comp,
+    rowData,
+    precompsFolder,
+    importFolder,
+    importedFiles,
+    precompMap,
+    suffix
+  ) {
+    if (!importedFiles) {
+      alert("importedFiles is undefined!");
+      return;
+    }
+
+    // Collect all affected layers and their precomps
+    var affectedPrecomps = new Array();
+    var allLayers = [];
+
+    for (var i = 1; i <= comp.layers.length; i++) {
+      var layer = comp.layer(i);
+      var layerName = layer.name;
+
+      // Update text layers based on rowData
+      if (rowData[layerName]) {
+        var textValue = rowData[layerName];
+        if (textValue && layer.property("Source Text") != null) {
+          layer.property("Source Text").setValue(textValue);
+        }
+      }
+
+      // Collect layers for processing
+      allLayers.push(layer);
+
+      // Identify precomps used by layers affected by CSV data
+      if (layer.source instanceof CompItem) {
+        var precompName = layer.source.name;
+        if (rowData[layerName]) {
+          // Only consider if layer is affected by CSV data
+          if (affectedPrecomps.indexOf(precompName) === -1) {
+            affectedPrecomps.push(precompName);
+          }
+        }
+      }
+    }
+
+    // Duplicate only the affected precomps
+    for (var i = 0; i < affectedPrecomps.length; i++) {
+      var precompName = affectedPrecomps[i];
+      if (!precompMap[precompName]) {
+        var preComp = findProjectItemByName(precompName);
+        if (preComp && preComp instanceof CompItem) {
+          // Duplicate and name the precomp
+          var preCompDuplicate = preComp.duplicate();
+          preCompDuplicate.name = precompName + suffix; // Ensure the name includes suffix
+          preCompDuplicate.parentFolder = precompsFolder;
+
+          // Add the newly duplicated precomp to the map
+          precompMap[precompName] = preCompDuplicate;
+        }
+      }
+    }
+
+    // Replace layers' sources with the duplicated or existing precomps
+    for (var i = 0; i < allLayers.length; i++) {
+      var layer = allLayers[i];
+      if (layer.source instanceof CompItem) {
+        var precompName = layer.source.name;
+        var newPrecomp = precompMap[precompName];
+        if (newPrecomp) {
+          layer.replaceSource(newPrecomp, false);
+          layer.enabled = true; // Ensure the layer is visible
+        } else {
+          alert("Precomp not found in precompMap: " + precompName);
+        }
+      }
+    }
+  }
+
+  // Function to create a new composition based on rowData and manage its import and layer updates
   function createCompFromData(
     rowData,
     mainComp,
     outputFolder,
     precompsFolder,
     importFolder,
-    existingCompNames
+    existingCompNames,
+    precompMap,
+    suffix
   ) {
-    var baseName = rowData["Composition Name"] + "_NEW_v";
-    var newName = baseName + "001";
-    var count = 1;
+    var newName = rowData["Composition Name"] + "_NEW";
 
-  while (arrayContains(existingCompNames, newName)) {
-    count++;
-    newName = baseName + ("000" + count).slice(-3);
-  }
+    //   var baseName = rowData["Composition Name"] + "_NEW_v";
+    //   var newName = baseName + "001";
+    //   var count = 1;
+
+    // var count = 1;
+    // var newName = baseName + ("000" + count).slice(-3);
+    // var isUnique = false;
+
+    // // Loop until a unique name is found
+    // while (!isUnique) {
+    //     isUnique = true; // Assume it's unique initially
+
+    //     // Manually check if newName exists in the array
+    //     for (var i = 0; i < existingCompNames.length; i++) {
+    //         if (existingCompNames[i] === newName) {
+    //             isUnique = false; // Found a match, name is not unique
+    //             count++;
+    //             newName = baseName + ("000" + count).slice(-3);
+    //             break; // Exit the loop early since we found a match
+    //         }
+    //     }
+    // }
+
+    // newName now holds a unique composition name
 
     existingCompNames.push(newName);
 
@@ -308,30 +485,28 @@ function updateLayers(
         if (filePath) {
           var importedFile = importFile(filePath, importFolder);
           if (importedFile) {
-            importedFiles[key.substring(1)] = importedFile; // Store the imported file with the column name as key
+            importedFiles[key.substring(1)] = importedFile;
           }
         }
       }
     }
 
-    // Update layers in the duplicated composition and its precompositions
-    updateLayers(newComp, rowData, precompsFolder, importFolder, importedFiles);
+    // Call updateLayers to update layers in the duplicated composition and its precompositions
+    updateLayers(
+      newComp,
+      rowData,
+      precompsFolder,
+      importFolder,
+      importedFiles,
+      precompMap,
+      suffix
+    );
 
     // Move the new composition to the specified folder
     newComp.parentFolder = outputFolder;
 
     return newComp;
   }
-
-
-  function arrayContains(array, value) {
-  for (var i = 0; i < array.length; i++) {
-    if (array[i] === value) {
-      return true;
-    }
-  }
-  return false;
-}
 
   function addToRenderQueueAndVerify(comp, outputModule, outputFolder) {
     // Ensure the output folder exists
@@ -457,47 +632,58 @@ function updateLayers(
   }
 
   function showNamingOptionDialog() {
-  var dialog = new Window("dialog", "New Composition Naming");
+    var dialog = new Window("dialog", "New Composition Naming");
 
-  dialog.add("statictext", undefined, "Choose naming option:");
-  var radioGroup = dialog.add("group");
-  radioGroup.orientation = "column";
+    dialog.add("statictext", undefined, "Choose naming option:");
+    var radioGroup = dialog.add("group");
+    radioGroup.orientation = "column";
 
-  var manualNamingOption = radioGroup.add("radiobutton", undefined, "Insert new comp naming");
-  var spreadsheetNamingOption = radioGroup.add("radiobutton", undefined, "Comp naming is in the spreadsheet");
+    var manualNamingOption = radioGroup.add(
+      "radiobutton",
+      undefined,
+      "Insert new comp naming"
+    );
+    var spreadsheetNamingOption = radioGroup.add(
+      "radiobutton",
+      undefined,
+      "Comp naming is in the spreadsheet"
+    );
 
-  manualNamingOption.value = true; // Set default option
+    manualNamingOption.value = true; // Set default option
 
-  var buttonGroup = dialog.add("group");
-  buttonGroup.orientation = "row";
-  var okButton = buttonGroup.add("button", undefined, "OK");
-  var cancelButton = buttonGroup.add("button", undefined, "Cancel");
+    var buttonGroup = dialog.add("group");
+    buttonGroup.orientation = "row";
+    var okButton = buttonGroup.add("button", undefined, "OK");
+    var cancelButton = buttonGroup.add("button", undefined, "Cancel");
 
-  var result = { useSpreadsheetNaming: false };
+    var result = { useSpreadsheetNaming: false };
 
-  okButton.onClick = function() {
-    result.useSpreadsheetNaming = spreadsheetNamingOption.value;
-    dialog.close();
-  };
-  cancelButton.onClick = function() {
-    dialog.close();
-  };
+    okButton.onClick = function () {
+      result.useSpreadsheetNaming = spreadsheetNamingOption.value;
+      dialog.close();
+    };
+    cancelButton.onClick = function () {
+      dialog.close();
+    };
 
-  dialog.show();
-  return result;
-}
+    dialog.show();
+    return result;
+  }
 
-
+  // Main function to handle the overall process, including user input, composition creation, and rendering
   function main() {
-    var outputFolderName = "Generated Comps"; // Name of the folder for new compositions
-    var precompsFolderName = "Precomps"; // Name of the folder for new precompositions
-    var importFolderName = "Imported Files"; // Name of the folder for imported files
+    var suffix = getPrecompSuffix();
+
+    var outputFolderName = "00_Generated Comps";
+    var precompsFolderName = "Precomps";
+    var importFolderName = "Imported Files";
 
     var data = parseDocument(filePath);
     var messages = [];
     var existingCompNames = [];
+    var precompMap = {}; // Add this to keep track of precomps
+    var templateCompositions = []; // Initialize the array to store found compositions
 
-    // Ensure the project has items
     if (app.project.items.length === 0) {
       var message =
         "No items in the project. Please ensure your project has at least one composition.";
@@ -505,13 +691,8 @@ function updateLayers(
       throw new Error(message);
     }
 
-    // Create a new folder for the generated compositions
     var outputFolder = app.project.items.addFolder(outputFolderName);
-
-    // Create a nested folder for the precompositions within the output folder
     var precompsFolder = outputFolder.items.addFolder(precompsFolderName);
-
-    // Create a folder for imported files within the output folder
     var importFolder = outputFolder.items.addFolder(importFolderName);
 
     var compsToRename = [];
@@ -519,89 +700,94 @@ function updateLayers(
     var namingOption = showNamingOptionDialog();
 
     for (var i = 0; i < data.length; i++) {
-    var compName = data[i]["Composition Name"];
-    if (compName) {
-      var mainComp = null;
-      for (var j = 1; j <= app.project.items.length; j++) {
-        if (
-          app.project.items[j] instanceof CompItem &&
-          app.project.items[j].name === compName
-        ) {
-          mainComp = app.project.items[j];
-          break;
+      var compName = data[i]["Composition Name"];
+      if (compName) {
+        var mainComp = null;
+        for (var j = 1; j <= app.project.items.length; j++) {
+          if (
+            app.project.items[j] instanceof CompItem &&
+            app.project.items[j].name === compName
+          ) {
+            mainComp = app.project.items[j];
+            break;
+          }
         }
-      }
 
-      if (mainComp) {
-        var newComp = createCompFromData(
-          data[i],
-          mainComp,
-          outputFolder,
-          precompsFolder,
-          importFolder,
-          existingCompNames
-        );
-        compsToRename.push(newComp);
-      } else {
-        var message = "Composition not found: " + compName;
-        alert(message);
-        messages.push(message);
-      }
-    }
-  }
+        if (mainComp) {
+          // Store the found composition in templateCompositions
+          templateCompositions.push(mainComp);
 
-  var renamedComps = [];
-  if (namingOption.useSpreadsheetNaming) {
-    for (var i = 0; i < compsToRename.length; i++) {
-      var newName = data[i]["New Comp Name"];
-      renamedComps.push({
-        oldName: compsToRename[i].name,
-        newName: newName || compsToRename[i].name, // Retain the default name if not provided
-      });
-    }
-  } else {
-    renamedComps = showRenameCompsDialog(compsToRename);
-  }
-
-  if (renamedComps) {
-    for (var i = 0; i < renamedComps.length; i++) {
-      var compInfo = renamedComps[i];
-      var comp = findProjectItemByName(compInfo.oldName);
-      if (comp) {
-        comp.name = compInfo.newName;
-      }
-    }
-  }
-
-  // Show dialog to decide whether to add to render queue
-  var renderOptions = showRenderQueueDialog();
-
-  if (!renderOptions.addToRenderQueue) {
-    return; // Exit if user did not choose to add to render queue
-  }
-
-  if (renamedComps) {
-    for (var i = 0; i < renamedComps.length; i++) {
-      var compInfo = renamedComps[i];
-      var comp = findProjectItemByName(compInfo.newName);
-      if (comp && renderOptions.outputModule) {
-        var renderQueueItem = addToRenderQueueAndVerify(
-          comp,
-          renderOptions.outputModule,
-          renderOptions.outputFolder
-        );
-        if (renderQueueItem.status == 3013) {
-          alert(
-            "Render queue item status is 3013. Please check the output module and destination folder settings."
+          var newComp = createCompFromData(
+            data[i],
+            mainComp,
+            outputFolder,
+            precompsFolder,
+            importFolder,
+            existingCompNames,
+            precompMap, // Pass the precompMap
+            suffix
           );
+          compsToRename.push(newComp);
+        } else {
+          var message = "Composition not found: " + compName;
+          alert(message);
+          messages.push(message);
         }
       }
     }
-  }
 
-  // Start rendering process with feedback
-  renderAndProvideFeedback();
-}
+    var renamedComps = [];
+    if (namingOption.useSpreadsheetNaming) {
+      for (var i = 0; i < compsToRename.length; i++) {
+        var newName = data[i]["New Comp Name"];
+        renamedComps.push({
+          oldName: compsToRename[i].name,
+          newName: newName || compsToRename[i].name, // Retain the default name if not provided
+        });
+      }
+    } else {
+      renamedComps = showRenameCompsDialog(compsToRename);
+    }
+
+    if (renamedComps) {
+      for (var i = 0; i < renamedComps.length; i++) {
+        var compInfo = renamedComps[i];
+        var comp = findProjectItemByName(compInfo.oldName);
+        if (comp) {
+          comp.name = compInfo.newName;
+        }
+      }
+    }
+
+    // Show dialog to decide whether to add to render queue
+    var renderOptions = showRenderQueueDialog();
+
+    if (!renderOptions.addToRenderQueue) {
+      return; // Exit if user did not choose to add to render queue
+    }
+
+    if (renamedComps) {
+      for (var i = 0; i < renamedComps.length; i++) {
+        var compInfo = renamedComps[i];
+        var comp = findProjectItemByName(compInfo.newName);
+        if (comp && renderOptions.outputModule) {
+          var renderQueueItem = addToRenderQueueAndVerify(
+            comp,
+            renderOptions.outputModule,
+            renderOptions.outputFolder
+          );
+          if (renderQueueItem.status == 3013) {
+            alert(
+              "Render queue item status is 3013. Please check the output module and destination folder settings."
+            );
+          }
+        }
+      }
+    }
+
+    // Start rendering process with feedback
+    renderAndProvideFeedback();
+  }
 
   main();
 }

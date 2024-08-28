@@ -141,45 +141,53 @@ function searchPrecomps(comp, parentCompData, project) {
 
   for (var k = 1; k <= comp.numLayers; k++) {
     var layer = comp.layer(k);
+    if (!layer) continue; // Skip if layer is undefined
+
+    var layerName = layer.name || ""; // Default to empty string if name is undefined
+
+    // Skip layers not starting with '@', '#', or '$'
+    if (
+      layerName.length === 0 ||
+      (layerName.indexOf("@") !== 0 &&
+        layerName.indexOf("#") !== 0 &&
+        layerName.indexOf("$") !== 0)
+    ) {
+      continue;
+    }
 
     // Recursively process precompositions first
     if (layer.source instanceof CompItem) {
       searchPrecomps(layer.source, parentCompData, project);
     }
 
-    // Extract text from text layers that contain @ symbol
+    // Extract text from text layers only if they contain '@'
     if (layer instanceof TextLayer && layer.property("Source Text") != null) {
-      if (layer.name.substring(0, 1) === "@") {
+      if (layerName.indexOf("@") === 0) {
+        // Check if the layer name starts with '@'
         var textSource = layer.property("Source Text").value;
         if (textSource) {
           var textContent = textSource.text.replace(/[\r\n]+/g, " ");
-          parentCompData.textLayers[layer.name] = textContent;
+          parentCompData.textLayers[layerName] = textContent;
         }
       }
     }
 
-    // Capture all layers that start with ">"
-    if (layer.name.substring(0, 1) === "$") {
+    // Capture all layers that start with '$'
+    if (layerName.indexOf("$") === 0) {
       hasGreaterThanLayer = true;
-      var filePath =
-        layer.source && layer.source.file
-          ? layer.source.file.fsName
-          : "no path retrieved";
-      parentCompData.fileLayers[layer.name] = filePath;
+      var filePath = "no path retrieved";
+      // Check if the layer's source has a file
+      if (layer.source && layer.source.file) {
+        filePath = layer.source.file.fsName;
+      }
+      parentCompData.fileLayers[layerName] = filePath;
     }
 
-    // Check if layer name starts with "#"
-    if (layer.name.charAt(0) === "#") {
-      if (layer.source) {
-        var sourceName = getSourceName(layer.source.name, project);
-        if (sourceName) {
-          parentCompData.specialLayers[layer.name] = sourceName;
-        } else {
-          parentCompData.specialLayers[layer.name] = "Source not found";
-        }
-      } else {
-        parentCompData.specialLayers[layer.name] = "No source associated";
-      }
+    // Check if layer name starts with '#'
+    if (layerName.indexOf("#") === 0) {
+      var sourceItemName = getSourceItemName(layer.source, project);
+      parentCompData.specialLayers[layerName] =
+        sourceItemName || "No source found";
     }
   }
 
@@ -187,15 +195,22 @@ function searchPrecomps(comp, parentCompData, project) {
   parentCompData.hasGreaterThanLayer = hasGreaterThanLayer;
 }
 
-// Helper function to get source name from project
-function getSourceName(layerName, project) {
+// Helper function to get the name of the source item from the project panel
+function getSourceItemName(layerSource, project) {
+  if (!layerSource) {
+    return null; // Return null if source is invalid
+  }
+
+  var sourceName = "No source found";
   for (var i = 1; i <= project.items.length; i++) {
     var item = project.items[i];
-    if (item instanceof FootageItem && item.name === layerName) {
-      return item.name;
+    if (item && item.id === layerSource.id) {
+      sourceName = item.name;
+      break;
     }
   }
-  return null; // Return null if source name is not found
+
+  return sourceName; // Return the name of the project item or "No source found"
 }
 
 function exportSelectedCompositions(compCheckboxes, format) {
@@ -218,6 +233,7 @@ function exportSelectedCompositions(compCheckboxes, format) {
       specialLayers: {},
       hasGreaterThanLayer: false,
     };
+
     searchPrecomps(compItem, parentCompData, project);
 
     var compObj = {
@@ -266,13 +282,13 @@ function generateAndSaveCSV(
     }
   }
 
-  for (layerName in uniqueFileLayerNames) {
+  for (var layerName in uniqueFileLayerNames) {
     if (uniqueFileLayerNames.hasOwnProperty(layerName)) {
       headers.push(layerName);
     }
   }
 
-  for (layerName in uniqueSpecialLayerNames) {
+  for (var layerName in uniqueSpecialLayerNames) {
     if (uniqueSpecialLayerNames.hasOwnProperty(layerName)) {
       headers.push(layerName);
     }
@@ -282,22 +298,32 @@ function generateAndSaveCSV(
 
   for (var i = 0; i < comps.length; i++) {
     var compObj = comps[i];
-    var compRow = ['"' + compObj.name.replace(/"/g, '""') + '"'];
+    if (!compObj) continue; // Skip if compObj is undefined
+    var compRow = ['"' + (compObj.name || "").replace(/"/g, '""') + '"'];
 
     for (var j = 1; j < headers.length; j++) {
       var header = headers[j];
-      var actualLayerName = header;
+      var actualLayerName = header || ""; // Default to empty string if header is undefined
       var content = "";
 
-      if (compObj.textLayersContent.hasOwnProperty(actualLayerName)) {
+      if (
+        compObj.textLayersContent &&
+        compObj.textLayersContent.hasOwnProperty(actualLayerName)
+      ) {
         content = compObj.textLayersContent[actualLayerName];
-      } else if (compObj.fileLayersContent.hasOwnProperty(actualLayerName)) {
+      } else if (
+        compObj.fileLayersContent &&
+        compObj.fileLayersContent.hasOwnProperty(actualLayerName)
+      ) {
         if (compObj.hasGreaterThanLayer) {
           content = compObj.fileLayersContent[actualLayerName];
         } else {
           content = "";
         }
-      } else if (compObj.specialLayersContent.hasOwnProperty(actualLayerName)) {
+      } else if (
+        compObj.specialLayersContent &&
+        compObj.specialLayersContent.hasOwnProperty(actualLayerName)
+      ) {
         content = compObj.specialLayersContent[actualLayerName];
       }
 
