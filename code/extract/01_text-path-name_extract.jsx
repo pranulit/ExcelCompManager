@@ -145,6 +145,31 @@ function searchPrecomps(comp, parentCompData, project) {
 
     var layerName = layer.name || ""; // Default to empty string if name is undefined
 
+    // Recursively process precompositions first, regardless of the layer name
+    if (layer.source instanceof CompItem) {
+      var subCompData = {
+        textLayers: {},
+        fileLayers: {},
+        specialLayers: {},
+        hasGreaterThanLayer: false,
+      };
+
+      searchPrecomps(layer.source, subCompData, project);
+
+      // Manually merge the results from the subcomposition search
+      for (var key in subCompData.textLayers) {
+        parentCompData.textLayers[key] = subCompData.textLayers[key];
+      }
+      for (var key in subCompData.fileLayers) {
+        parentCompData.fileLayers[key] = subCompData.fileLayers[key];
+      }
+      for (var key in subCompData.specialLayers) {
+        parentCompData.specialLayers[key] = subCompData.specialLayers[key];
+      }
+      hasGreaterThanLayer =
+        hasGreaterThanLayer || subCompData.hasGreaterThanLayer;
+    }
+
     // Skip layers not starting with '@', '#', or '$'
     if (
       layerName.length === 0 ||
@@ -155,15 +180,9 @@ function searchPrecomps(comp, parentCompData, project) {
       continue;
     }
 
-    // Recursively process precompositions first
-    if (layer.source instanceof CompItem) {
-      searchPrecomps(layer.source, parentCompData, project);
-    }
-
     // Extract text from text layers only if they contain '@'
     if (layer instanceof TextLayer && layer.property("Source Text") != null) {
       if (layerName.indexOf("@") === 0) {
-        // Check if the layer name starts with '@'
         var textSource = layer.property("Source Text").value;
         if (textSource) {
           var textContent = textSource.text.replace(/[\r\n]+/g, " ");
@@ -176,10 +195,12 @@ function searchPrecomps(comp, parentCompData, project) {
     if (layerName.indexOf("$") === 0) {
       hasGreaterThanLayer = true;
       var filePath = "no path retrieved";
+
       // Check if the layer's source has a file
       if (layer.source && layer.source.file) {
         filePath = layer.source.file.fsName;
       }
+
       parentCompData.fileLayers[layerName] = filePath;
     }
 
