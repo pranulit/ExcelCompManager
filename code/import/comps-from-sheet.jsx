@@ -21,29 +21,45 @@
     throw new Error("Script terminated: No file selected.");
   }
 
-  // Function to determine the delimiter used in the selected file based on its extension.
-  // Returns ";" for CSV files on Windows, "," on other OS, and "\t" for TSV and TXT files.
+  // Function to determine the delimiter used in the selected file based on its content.
+  // Returns ";" if the file uses semicolons, "," if it uses commas, and "\t" for TSV and TXT files.
   function getDelimiter(filePath) {
     var parts = filePath.split(".");
     var extension = parts[parts.length - 1].toLowerCase();
     var delimiter;
 
+    // Default delimiter based on OS
     if ($.os.indexOf("Windows") !== -1) {
-      delimiter = ";";
+      delimiter = ";"; // Default for CSV on Windows
     } else {
-      delimiter = ",";
+      delimiter = ","; // Default for CSV on macOS and others
     }
 
     switch (extension) {
       case "csv":
+        // Detect delimiter based on the content of the file
+        var fileContent = readFile(filePath);
+        if (fileContent.indexOf(";") > -1) {
+          return ";";
+        } else if (fileContent.indexOf(",") > -1) {
+          return ",";
+        }
         return delimiter;
       case "tsv":
-        return "\t";
       case "txt":
-        return "\t"; // Default delimiter for txt files (can be changed)
+        return "\t"; // Default delimiter for tsv and txt files
       default:
         return delimiter; // Default delimiter if unknown
     }
+  }
+
+  // Function to read the content of the file
+  function readFile(filePath) {
+    var file = File(filePath);
+    file.open("r");
+    var content = file.read();
+    file.close();
+    return content;
   }
 
   // Function to display a dialog for selecting render settings and adding to the render queue.
@@ -525,8 +541,7 @@
     // Use appropriate path separator
     var pathSeparator = Folder.fs == "Macintosh" ? "/" : "\\";
     var uniqueID = new Date().getTime(); // Generate a unique ID based on the current timestamp
-    var outputFilePath =
-      outputFolder + pathSeparator + comp.name + "_" + uniqueID + ".mp4"; // Append unique ID to file name
+    var outputFilePath = outputFolder + pathSeparator + comp.name; // Append unique ID to file name
 
     renderQueueItem.outputModule(1).file = new File(outputFilePath);
 
