@@ -938,6 +938,9 @@ function compsFromSheet() {
             layer.stretch = originalStretch;
             layer.enabled = originalEnabled;
           }
+
+          // Skip further processing and suffix application for # layers
+          continue;
         }
 
         // Recursively update and duplicate text layers in precompositions only if they have symbols
