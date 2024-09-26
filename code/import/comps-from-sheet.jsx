@@ -210,16 +210,48 @@
   }
 
   // Function to show a dialog where the user can enter a suffix for precompositions.
-  // Returns the entered suffix or an empty string if the dialog is canceled.
+  // Returns an object containing the suffix and a flag indicating whether to import suffix from CSV.
   function getPrecompSuffix() {
-    var dialog = new Window("dialog", "Enter Suffix for Precomps");
+    var dialog = new Window("dialog", "Precomp Suffix Options");
+
     dialog.add(
       "statictext",
       undefined,
-      "Enter the suffix to append to precomp names:"
+      "Choose how to provide the precomp suffix:"
     );
-    var input = dialog.add("edittext", undefined, "");
+
+    var radioGroup = dialog.add("group");
+    radioGroup.orientation = "column";
+
+    var manualOption = radioGroup.add(
+      "radiobutton",
+      undefined,
+      "Enter suffix manually (common precomps)"
+    );
+    var csvOption = radioGroup.add(
+      "radiobutton",
+      undefined,
+      "Import from 'precomp suffix' column' (common precomps groups)"
+    );
+
+    manualOption.value = true; // Set default option
+
+    // If manualOption is selected, show the input field
+    var inputGroup = dialog.add("group");
+    inputGroup.orientation = "row";
+
+    inputGroup.add("statictext", undefined, "Suffix:");
+    var input = inputGroup.add("edittext", undefined, "");
     input.characters = 20;
+
+    // Disable input field when csvOption is selected
+    manualOption.onClick = function () {
+      input.enabled = true;
+    };
+
+    csvOption.onClick = function () {
+      input.enabled = false;
+    };
 
     var buttonGroup = dialog.add("group");
     buttonGroup.orientation = "row";
@@ -235,11 +267,18 @@
     };
 
     if (dialog.show() === 1) {
-      // Ensure that suffix is trimmed and check if it is empty
-      var suffix = input.text.replace(/^\s+|\s+$/g, "");
-      return suffix || ""; // If the suffix is empty, return an empty string
+      var suffix = "";
+      var useCsvSuffix = false;
+
+      if (manualOption.value) {
+        suffix = input.text.replace(/^\s+|\s+$/g, ""); // Trim whitespace
+      } else {
+        useCsvSuffix = true;
+      }
+
+      return { suffix: suffix, useCsvSuffix: useCsvSuffix };
     } else {
-      return ""; // If dialog was cancelled, return an empty string
+      return null; // Dialog cancelled
     }
   }
 
@@ -271,8 +310,11 @@
 
     var symbols = ["@", "$", "#"];
 
+    // Adjust precompMap key to include suffix
+    var compKey = comp.name + "_" + suffix;
+
     // Check if the composition has already been processed
-    if (precompMap[comp.name]) {
+    if (precompMap[compKey]) {
       return;
     }
 
@@ -311,12 +353,13 @@
         }
       }
 
-      // Replace layers with corresponding project items if the layer name starts with "#"
+      // Handle precomps with "#" symbol without adding a suffix or duplicating them
       if (layerName.indexOf("#") === 0) {
         var columnName = layerName.substring(1);
-        var projectItemName = rowData["#" + columnName];
-        var projectItem = findProjectItemByName(projectItemName);
-        if (projectItem) {
+        var precompName = rowData["#" + columnName]; // Precomp name from CSV
+        var preComp = findProjectItemByName(precompName); // Find the precomp in the project by name
+
+        if (preComp) {
           var originalStartTime = layer.startTime;
           var originalInPoint = layer.inPoint;
           var originalOutPoint = layer.outPoint;
@@ -324,30 +367,36 @@
           var originalStretch = layer.stretch;
           var originalEnabled = layer.enabled;
 
-          layer.replaceSource(projectItem, false);
+          // Replace the layer with the existing precomp from the project panel
+          layer.replaceSource(preComp, false);
 
           layer.startTime = originalStartTime;
           layer.inPoint = originalInPoint;
           layer.outPoint = originalOutPoint;
           layer.stretch = originalStretch;
           layer.enabled = originalEnabled;
-        }
-          // Skip further processing and suffix application for # layers
+
+          // Skip further processing for # layers, no suffix to be applied
           continue;
+        } else {
+          alert("Composition not found in project: " + precompName);
+        }
       }
 
-      // Recursively update and duplicate text layers in precompositions only if they have symbols
+      // Handle precomps with symbols like @ and other cases where duplication is needed
       if (layer.source instanceof CompItem) {
         var preComp = layer.source;
 
         if (containsLayerWithSymbols(preComp, symbols)) {
-          if (!precompMap[preComp.name]) {
+          var preCompKey = preComp.name + "_" + suffix;
+
+          if (!precompMap[preCompKey]) {
             var preCompDuplicate = preComp.duplicate();
             preCompDuplicate.name = preComp.name + suffix;
             preCompDuplicate.parentFolder = precompsFolder;
 
-            // Mark the original precomp as processed to avoid duplication
-            precompMap[preComp.name] = preCompDuplicate;
+            // Mark the duplicated precomp in the precompMap
+            precompMap[preCompKey] = preCompDuplicate;
 
             // Update layers in the duplicated precomp
             updateLayers(
@@ -362,14 +411,14 @@
           }
 
           // Replace the layer with the duplicated precomp
-          layer.replaceSource(precompMap[preComp.name], false);
+          layer.replaceSource(precompMap[preCompKey], false);
           layer.enabled = true;
         }
       }
     }
 
     // Mark the top-level composition as processed to avoid reprocessing
-    precompMap[comp.name] = comp;
+    precompMap[compKey] = comp;
   }
 
   // Function to update layers in a composition with CSV data and manage precompositions
@@ -463,31 +512,6 @@
     suffix
   ) {
     var newName = rowData["Composition Name"] + "_NEW";
-
-    //   var baseName = rowData["Composition Name"] + "_NEW_v";
-    //   var newName = baseName + "001";
-    //   var count = 1;
-
-    // var count = 1;
-    // var newName = baseName + ("000" + count).slice(-3);
-    // var isUnique = false;
-
-    // // Loop until a unique name is found
-    // while (!isUnique) {
-    //     isUnique = true; // Assume it's unique initially
-
-    //     // Manually check if newName exists in the array
-    //     for (var i = 0; i < existingCompNames.length; i++) {
-    //         if (existingCompNames[i] === newName) {
-    //             isUnique = false; // Found a match, name is not unique
-    //             count++;
-    //             newName = baseName + ("000" + count).slice(-3);
-    //             break; // Exit the loop early since we found a match
-    //         }
-    //     }
-    // }
-
-    // newName now holds a unique composition name
 
     existingCompNames.push(newName);
 
@@ -600,23 +624,50 @@
     alert("Rendering complete. " + completedItems + " items rendered.");
   }
 
-  function showRenameCompsDialog(comps) {
-    var dialog = new Window("dialog", "Rename Compositions");
+  // Function to get new composition names from the user or CSV
+  function getCompNames(compsToRename, data) {
+    var dialog = new Window("dialog", "Composition Naming Options");
 
-    dialog.add("statictext", undefined, "Enter new names (one per line):");
+    dialog.add(
+      "statictext",
+      undefined,
+      "Choose how to name the new compositions:"
+    );
 
-    var previousNamesGroup = dialog.add("group");
-    previousNamesGroup.orientation = "column";
-    for (var i = 0; i < comps.length; i++) {
-      previousNamesGroup.add(
-        "statictext",
-        undefined,
-        "Current Name: " + comps[i].name
-      );
-    }
+    var radioGroup = dialog.add("group");
+    radioGroup.orientation = "column";
 
-    var namesInput = dialog.add("edittext", undefined, "", { multiline: true });
+    var manualOption = radioGroup.add(
+      "radiobutton",
+      undefined,
+      "Enter names manually"
+    );
+    var csvOption = radioGroup.add(
+      "radiobutton",
+      undefined,
+      "Use names from CSV (column 'new comp name')"
+    );
+
+    manualOption.value = true; // Set default option
+
+    // Input field for manual entry
+    var inputGroup = dialog.add("group");
+    inputGroup.orientation = "column";
+
+    inputGroup.add("statictext", undefined, "Enter new names (one per line):");
+    var namesInput = inputGroup.add("edittext", undefined, "", {
+      multiline: true,
+    });
     namesInput.preferredSize = { width: 300, height: 200 };
+
+    // Disable input field when csvOption is selected
+    manualOption.onClick = function () {
+      namesInput.enabled = true;
+    };
+
+    csvOption.onClick = function () {
+      namesInput.enabled = false;
+    };
 
     var buttonGroup = dialog.add("group");
     buttonGroup.orientation = "row";
@@ -626,20 +677,34 @@
     okButton.onClick = function () {
       dialog.close(1);
     };
+
     cancelButton.onClick = function () {
       dialog.close(0);
     };
 
     if (dialog.show() === 1) {
-      var newNames = namesInput.text.split("\n");
-      for (var i = 0; i < newNames.length; i++) {
-        newNames[i] = newNames[i].replace(/^\s+|\s+$/g, ""); // Trim whitespace
+      var newNames = [];
+      var useCsvNames = false;
+
+      if (manualOption.value) {
+        newNames = namesInput.text.split("\n");
+        for (var i = 0; i < newNames.length; i++) {
+          newNames[i] = newNames[i].replace(/^\s+|\s+$/g, ""); // Trim whitespace
+        }
+      } else {
+        useCsvNames = true;
+        // Get names from CSV
+        for (var i = 0; i < data.length; i++) {
+          var newName = data[i]["new comp name"];
+          newNames.push(newName || compsToRename[i].name); // Use existing name if not provided
+        }
       }
+
       var renamedComps = [];
-      for (var i = 0; i < comps.length; i++) {
+      for (var i = 0; i < compsToRename.length; i++) {
         renamedComps.push({
-          oldName: comps[i].name,
-          newName: newNames[i] || comps[i].name, // Retain the default name if not renamed
+          oldName: compsToRename[i].name,
+          newName: newNames[i] || compsToRename[i].name, // Retain the default name if not renamed
         });
       }
       return renamedComps;
@@ -689,7 +754,16 @@
 
   // Main function to handle the overall process, including user input, composition creation, and rendering
   function main() {
-    var suffix = getPrecompSuffix();
+    var suffixData = getPrecompSuffix();
+
+    if (!suffixData) {
+      // User cancelled the dialog
+      return;
+    }
+
+    // Store the suffix and whether to use CSV suffix
+    var suffix = suffixData.suffix;
+    var useCsvSuffix = suffixData.useCsvSuffix;
 
     var outputFolderName = "00_Generated Comps";
     var precompsFolderName = "Precomps";
@@ -698,7 +772,7 @@
     var data = parseDocument(filePath);
     var messages = [];
     var existingCompNames = [];
-    var precompMap = {}; // Add this to keep track of precomps
+    var precompMap = {}; // Keep track of precomps
     var templateCompositions = []; // Initialize the array to store found compositions
 
     if (app.project.items.length === 0) {
@@ -713,8 +787,6 @@
     var importFolder = outputFolder.items.addFolder(importFolderName);
 
     var compsToRename = [];
-
-    var namingOption = showNamingOptionDialog();
 
     for (var i = 0; i < data.length; i++) {
       var compName = data[i]["Composition Name"];
@@ -734,6 +806,11 @@
           // Store the found composition in templateCompositions
           templateCompositions.push(mainComp);
 
+          var rowSuffix = suffix;
+          if (useCsvSuffix) {
+            rowSuffix = data[i]["precomp suffix"] || ""; // Get suffix from CSV or default to empty string
+          }
+
           var newComp = createCompFromData(
             data[i],
             mainComp,
@@ -741,8 +818,8 @@
             precompsFolder,
             importFolder,
             existingCompNames,
-            precompMap, // Pass the precompMap
-            suffix
+            precompMap,
+            rowSuffix
           );
           compsToRename.push(newComp);
         } else {
@@ -753,18 +830,8 @@
       }
     }
 
-    var renamedComps = [];
-    if (namingOption.useSpreadsheetNaming) {
-      for (var i = 0; i < compsToRename.length; i++) {
-        var newName = data[i]["New Comp Name"];
-        renamedComps.push({
-          oldName: compsToRename[i].name,
-          newName: newName || compsToRename[i].name, // Retain the default name if not provided
-        });
-      }
-    } else {
-      renamedComps = showRenameCompsDialog(compsToRename);
-    }
+    // Get new composition names from the user or CSV
+    var renamedComps = getCompNames(compsToRename, data);
 
     if (renamedComps) {
       for (var i = 0; i < renamedComps.length; i++) {
@@ -774,6 +841,9 @@
           comp.name = compInfo.newName;
         }
       }
+    } else {
+      // User canceled the renaming process
+      return;
     }
 
     // Show dialog to decide whether to add to render queue
@@ -805,6 +875,5 @@
     // Start rendering process with feedback
     renderAndProvideFeedback();
   }
-
   main();
 }
