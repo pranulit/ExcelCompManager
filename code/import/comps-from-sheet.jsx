@@ -330,26 +330,35 @@
         }
       }
 
-      // Replace layers with corresponding imported files if the layer name starts with "$"
-      if (layerName.indexOf("$") === 0) {
-        var columnName = layerName.substring(1);
-        var importedFile = importedFiles[columnName];
+      for (var i = 1; i <= comp.layers.length; i++) {
+        var layer = comp.layer(i);
+        var layerName = layer.name;
 
-        if (importedFile) {
-          var originalStartTime = layer.startTime;
-          var originalInPoint = layer.inPoint;
-          var originalOutPoint = layer.outPoint;
-          var originalDuration = layer.outPoint - layer.inPoint;
-          var originalStretch = layer.stretch;
-          var originalEnabled = layer.enabled;
+        // Process $-prefixed layers
+        if (layerName.indexOf("$") === 0) {
+          var columnName = layerName.substring(1); // Remove "$" to get column name
+          var importedFile = importedFiles[columnName];
 
-          layer.replaceSource(importedFile, false);
+          if (importedFile) {
+            try {
+              // Store original properties
+              var originalStartTime = layer.startTime;
+              var originalInPoint = layer.inPoint;
+              var originalOutPoint = layer.outPoint;
+              var originalStretch = layer.stretch;
+              var originalEnabled = layer.enabled;
 
-          layer.startTime = originalStartTime;
-          layer.inPoint = originalInPoint;
-          layer.outPoint = originalOutPoint;
-          layer.stretch = originalStretch;
-          layer.enabled = originalEnabled;
+              // Replace source
+              layer.replaceSource(importedFile, false);
+
+              // Restore original properties
+              layer.startTime = originalStartTime;
+              layer.inPoint = originalInPoint;
+              layer.outPoint = originalOutPoint;
+              layer.stretch = originalStretch;
+              layer.enabled = originalEnabled;
+            } catch (error) {}
+          }
         }
       }
 
@@ -511,7 +520,8 @@
     precompMap,
     suffix
   ) {
-    var newName = rowData["Composition Name"] + "_NEW";
+    var newName =
+      rowData["new comp name"] || rowData["Composition Name"] + "_NEW";
 
     existingCompNames.push(newName);
 
@@ -520,20 +530,20 @@
 
     var importedFiles = {};
 
-    // Import files and store them in the dictionary
+    // Import files specific to this row and store them in the dictionary
     for (var key in rowData) {
       if (rowData.hasOwnProperty(key) && key.indexOf("$") === 0) {
         var filePath = rowData[key];
         if (filePath) {
           var importedFile = importFile(filePath, importFolder);
           if (importedFile) {
-            importedFiles[key.substring(1)] = importedFile;
+            importedFiles[key.substring(1)] = importedFile; // Remove "$" prefix for key
           }
         }
       }
     }
 
-    // Call updateLayers to update layers in the duplicated composition and its precompositions
+    // Update layers in the new composition with the specific row's data
     updateLayers(
       newComp,
       rowData,
@@ -767,7 +777,7 @@
 
     var outputFolderName = "00_Generated Comps";
     var precompsFolderName = "Precomps";
-    var importFolderName = "Imported Files";
+    var importFolderName = "! Imported Files";
 
     var data = parseDocument(filePath);
     var messages = [];
